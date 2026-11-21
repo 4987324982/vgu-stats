@@ -1,0 +1,12 @@
+[
+  {"type":"click","selector":"button[data-role='teacher']"},
+  {"type":"assert","selector":"button[data-role='teacher']","property":"class","equals":"active"},
+  {"type":"click","selector":".side-btn[data-page='schedule']"},
+  {"type":"assert","selector":".side-btn[data-page='schedule']","property":"class","equals":"side-btn active"},
+  {"type":"click","selector":".side-btn[data-page='journal']"},
+  {"type":"assert","selector":"#journal","property":"class","equals":"page active"},
+  {"type":"click","selector":".side-btn[data-page='messages']"},
+  {"type":"fill","selector":"#msg-text","value":"Тест"},
+  {"type":"click","selector":"#msg-send"},
+  {"type":"assert","selector":"#msg-result","property":"text","equals":"Сохранено как черновик. Отправка будет доступна с подключённым бэкендом."}
+]

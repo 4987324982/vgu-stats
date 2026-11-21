@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ВГУstats — школьный портал</title>
+<style>
+  :root{
+    --bg:#f2f5fa;
+    --panel:#ffffff;
+    --ink:#1c2733;
+    --muted:#5b6b7b;
+    --line:#e2e8f0;
+    --brand:#2456c6;
+    --brand-2:#16336f;
+    --accent:#d97706;
+    --good:#1f9d6b;
+    --bad:#d64541;
+    --radius:14px;
+    --shadow:0 6px 22px rgba(20,40,80,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  a{color:var(--brand);text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+  .app{display:flex;min-height:100vh}
+
+  /* Top bar */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--brand-2);color:#fff;display:flex;align-items:center;gap:16px;padding:0 20px;height:62px;box-shadow:var(--shadow)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:.2px}
+  .brand .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#7c3aed);display:grid;place-items:center;font-size:16px}
+  .role-switch{margin-left:auto;display:flex;background:rgba(255,255,255,.12);border-radius:10px;padding:4px}
+  .role-switch button{border:0;background:transparent;color:#cfd9ea;padding:7px 14px;border-radius:8px;font-size:14px;font-weight:600}
+  .role-switch button.active{background:#fff;color:var(--brand-2)}
+  .admin-label{margin-left:auto;background:rgba(255,255,255,.15);color:#fff;padding:8px 16px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:.3px}
+
+  /* Sidebar */
+  .sidebar{width:230px;background:var(--panel);border-right:1px solid var(--line);padding:18px 12px;flex-shrink:0}
+  .side-btn{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:0;color:var(--muted);padding:11px 12px;border-radius:10px;font-size:15px;font-weight:500}
+  .side-btn:hover{background:#eef2f9}
+  .side-btn.active{background:var(--brand);color:#fff}
+  .side-btn .ic{width:20px;text-align:center}
+  .main{flex:1;padding:26px 30px;max-width:1080px}
+  .page{display:none;animation:fade .25s ease}
+  .page.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+
+  .page-title{font-size:24px;font-weight:700;margin:0 0 4px}
+  .page-sub{color:var(--muted);margin:0 0 20px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .card .k{color:var(--muted);font-size:13px}
+  .card .v{font-size:28px;font-weight:800;margin-top:4px}
+  .card.tone{color:#fff;border:0}
+  .card.tone .k{color:rgba(255,255,255,.85)}
+  .tone-blue{background:linear-gradient(135deg,#2456c6,#3b82f6)}
+  .tone-orange{background:linear-gradient(135deg,#c2540c,#f59e0b)}
+  .tone-green{background:linear-gradient(135deg,#0f8a5b,#22c199)}
+
+  .section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:20px;box-shadow:var(--shadow)}
+  .section h2{margin:0 0 14px;font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .chip{border:1px solid var(--line);background:#f7f9fc;color:var(--muted);padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600}
+  .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px;background:#f8fafc}
+  tr:hover td{background:#f7f9fc}
+  .badge{display:inline-block;padding:3px 9px;border-radius:6px;font-weight:700;font-size:13px}
+  .b-good{background:#e4f6ee;color:var(--good)}
+  .b-chk{background:#eef2ff;color:var(--brand-2)}
+  .b-warn{background:#fdeedd;color:var(--accent)}
+  .grade{width:30px;height:30px;border-radius:8px;display:inline-grid;place-items:center;font-weight:700;color:#fff}
+
+  .msg{display:flex;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:#fff}
+  .avatar{width:40px;height:40px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;flex-shrink:0}
+  .msg.teacher .avatar{background:var(--accent)}
+  .msg h3{margin:0 0 3px;font-size:14px}
+  .msg .t{color:var(--muted);font-size:13px}
+  .msg .meta{color:var(--muted);font-size:12px;margin-left:auto;white-space:nowrap}
+  .hw{border-left:4px solid var(--brand);background:#f7f9fc;border-radius:0 12px 12px 0;padding:14px 16px;margin-bottom:12px}
+  .hw.en{background:#fff;border-left-color:var(--good)}
+  .hw h3{margin:0 0 4px;font-size:15px;font-weight:700}
+  .hw .subj{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .hw .due{font-size:12px;color:var(--accent);font-weight:600}
+  .textbox{border:1px solid var(--line);border-radius:12px;padding:10px 12px;width:100%;font:inherit;color:var(--ink);resize:vertical}
+  .btn{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:600;font-size:14px}
+  .btn:hover{background:var(--brand-2)}
+  .placeholder{border:1.5px dashed var(--line);border-radius:12px;padding:22px;color:var(--muted);background:#fbfcfe;font-size:14px}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px}
+
+  @media (max-width:820px){
+    .app{flex-direction:column}
+    .sidebar{width:100%;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:6px;overflow-x:auto;padding:10px}
+    .side-btn{width:auto;white-space:nowrap;font-size:14px}
+    .main{padding:18px}
+    .topbar{flex-wrap:wrap;height:auto;padding:12px 16px}
+    .role-switch{margin-left:0}
+    .page-title{font-size:20px}
+  }
+
+  /* ===== Экран входа ===== */
+  body.locked{overflow:hidden}
+  .login-overlay{position:fixed;inset:0;z-index:100;background:linear-gradient(135deg,#16336f,#2456c6 55%,#3b82f6);display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-card{background:#fff;border-radius:18px;box-shadow:0 24px 60px rgba(8,20,50,.4);width:100%;max-width:380px;padding:32px 28px}
+  .login-brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .login-brand .mark{width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#7c3aed);display:grid;place-items:center;font-size:22px;color:#fff;font-weight:800}
+  .login-brand h1{margin:0;font-size:24px;color:var(--brand-2)}
+  .login-sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+  .login-card label{display:block;font-size:13px;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .login-card .field{margin-bottom:16px}
+  .login-card .textbox{padding:12px 14px}
+  .login-err{background:#fdeedd;color:var(--bad);border:1px solid #f5c6bd;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:14px}
+  .login-btn{width:100%;padding:13px;font-size:15px}
+  .login-hint{margin-top:16px;font-size:12.5px;color:var(--muted);text-align:center}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-brand"><span class="mark">В</span><h1>ВГУstats</h1></div>
+    <p class="login-sub">Вход в личный кабинет ученика</p>
+    <div class="login-err hidden" id="login-err">Неверный логин или пароль</div>
+    <div class="field">
+      <label for="login-user">Логин</label>
+      <input class="textbox" id="login-user" type="text" autocomplete="username" aria-label="Логин" placeholder="Ваш логин">
+    </div>
+    <div class="field">
+      <label for="login-pass">Пароль</label>
+      <input class="textbox" id="login-pass" type="password" autocomplete="current-password" aria-label="Пароль" placeholder="••••••••">
+    </div>
+    <button class="btn login-btn" id="login-submit" type="button">Войти</button>
+  </div>
+</div>
+<div class="topbar">
+  <div class="brand"><span class="mark">В</span><span>ВГУstats</span></div>
+  <div class="role-switch" id="role-switch" role="tablist" aria-label="Выбор роли">
+    <button type="button" class="active" data-role="student" role="tab">Ученик</button>
+    <button type="button" data-role="parent" role="tab">Родитель</button>
+    <button type="button" data-role="teacher" role="tab">Учитель</button>
+  </div>
+  <div class="admin-label hidden" id="role-label">Администратор</div>
+</div>
+
+<div class="app">
+  <nav class="sidebar" id="sidebar" aria-label="Меню разделов">
+    <button type="button" class="side-btn active" data-page="overview"><span class="ic">◧</span><span>Сводка</span></button>
+    <button type="button" class="side-btn" data-page="schedule"><span class="ic">☰</span><span>Расписание</span></button>
+    <button type="button" class="side-btn" data-page="grades"><span class="ic">✦</span><span>Оценки</span></button>
+    <button type="button" class="side-btn" data-page="journal"><span class="ic">▤</span><span>Журнал</span></button>
+    <button type="button" class="side-btn" data-page="homework"><span class="ic">✎</span><span>Домашние задания</span></button>
+    <button type="button" class="side-btn" data-page="messages"><span class="ic">✉</span><span>Сообщения</span></button>
+  </nav>
+  <main class="main">
+
+    <!-- ================= СВОДКА ================= -->
+    <section class="page active" id="overview" aria-label="Сводка"></section>
+
+    <!-- ================= РАСПИСАНИЕ ================= -->
+    <section class="page" id="schedule" aria-label="Расписание">
+      <h1 class="page-title">Расписание</h1>
+      <p class="page-sub" id="sched-sub">Расписание на текущую неделю.</p>
+      <div class="chips" id="sched-days"></div>
+      <div class="section" id="sched-table"></div>
+    </section>
+
+    <!-- ================= ОЦЕНКИ ================= -->
+    <section class="page" id="grades" aria-label="Оценки">
+      <h1 class="page-title">Оценки</h1>
+      <p class="page-sub" id="grades-sub">Успеваемость по предметам.</p>
+      <div class="cards" id="grades-summary"></div>
+      <div class="section" id="grades-table"></div>
+    </section>
+
+    <!-- ================= ЖУРНАЛ (учитель) ================= -->
+    <section class="page" id="journal" aria-label="Журнал">
+      <h1 class="page-title">Классный журнал</h1>
+      <p class="page-sub">Электронный журнал — группы по предметам.</p>
+      <div id="journal-body"></div>
+    </section>
+
+    <!-- ================= ДОМАШНИЕ ЗАДАНИЯ ================= -->
+    <section class="page" id="homework" aria-label="Домашние задания">
+      <h1 class="page-title">Домашние задания</h1>
+      <p class="page-sub">Задания к текущей неделе.</p>
+      <div id="hw-body"></div>
+    </section>
+
+    <!-- ================= СООБЩЕНИЯ ================= -->
+    <section class="page" id="messages" aria-label="Сообщения">
+      <h1 class="page-title">Сообщения</h1>
+      <p class="page-sub">Переписка с классом и учителями.</p>
+      <div id="msg-body"></div>
+      <div class="section">
+        <h2>Новое сообщение</h2>
+        <textarea class="textbox" id="msg-text" rows="3" aria-label="Текст нового сообщения" placeholder="Введите текст сообщения…"></textarea>
+        <div style="margin-top:12px"><button class="btn" id="msg-send">Отправить</button></div>
+        <p class="note" id="msg-result">Демо-режим: сообщение никому не отправляется и сохраняется локально.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ================= ХРАНИЛИЩЕ ДАННЫХ =================
+   Автономный режим: данные читаются и сохраняются в localStorage
+   браузера (на этом устройстве). Бэкенд/сервер не требуются.
+   При первом открытии используются встроенные демо-данные. */
+
+const SITE_NAME = "ВГУstats";
+const STORE_KEY = "vgu-data-v1";
+
+const DEFAULT_DATA = {
+  config: { siteName:"ВГУstats", currentStudent:"Анна Смирнова", className:"10 «А»" },
+  students: ["Анна Смирнова","Иван Петров","Мария Козлова","Дмитрий Соколов","Полина Морозова","Артём Волков"],
+  teachers: {
+    "Математика":"Иванова О. П.","Русский язык":"Сидорова Н. В.","Физика":"Кузнецов А. С.",
+    "История":"Морозова Е. И.","Информатика":"Павлов Д. А.","Английский язык":"Лебедева Ю. М.",
+    "Химия":"Смирнова Т. А.","Литература":"Гришина Л. П."
+  },
+  schedule: {
+    "Понедельник":["Математика","Русский язык","Физика","История"],
+    "Вторник":["Информатика","Английский язык","Математика","Литература"],
+    "Среда":["Химия","Русский язык","Физика","История"],
+    "Четверг":["Математика","Английский язык","Информатика","Химия"],
+    "Пятница":["Литература","Русский язык","История","Информатика"]
+  },
+  grades: [
+    {subject:"Математика", grades:[5,4,5,4,3]},
+    {subject:"Русский язык", grades:[4,4,5,4]},
+    {subject:"Физика", grades:[4,3,4,5]},
+    {subject:"История", grades:[5,5,4,5]},
+    {subject:"Информатика", grades:[5,5,5]},
+    {subject:"Английский язык", grades:[4,4,5,3]},
+    {subject:"Химия", grades:[4,5,4]},
+    {subject:"Литература", grades:[5,4,5,5,4]}
+  ],
+  homework: [
+    {subj:"Математика", text:"Решить задачи 12–16 на стр. 87, подготовиться к контрольной.", due:"завтра"},
+    {subj:"Русский язык", text:"Написать сочинение-рассуждение (не менее 150 слов).", due:"пятница", extra:true},
+    {subj:"Физика", text:"Параграф 24, выписать формулы и определение.", due:"среда"},
+    {subj:"Английский язык", text:"Учить слова к разделу 5, упр. 4 стр. 62.", due:"четверг"}
+  ],
+  messages: [
+    {from:"Иванова О. П.", role:"teacher", text:"Завтра на 6 уроке пишем контрольную по математике. Повторите дроби и проценты.", time:"сегодня, 09:12"},
+    {from:"Классный руководитель", role:"teacher", text:"В субботу в 10:00 — собрание родителей в актовом зале.", time:"вчера, 17:40"},
+    {from:"Иван Петров", role:"student", text:"У кого есть конспект по истории за вчерашний урок? Скиньте, пожалуйста.", time:"вчера, 15:03"}
+  ],
+  journal: {
+    "Математика": [
+      {name:"Анна Смирнова", grades:[5,4,4]},
+      {name:"Иван Петров", grades:[3,4,4]},
+      {name:"Мария Козлова", grades:[5,5,4]},
+      {name:"Дмитрий Соколов", grades:[4,3,5]},
+      {name:"Полина Морозова", grades:[5,5,5]},
+      {name:"Артём Волков", grades:[4,4,3]}
+    ]
+  }
+};
+
+let DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
+const CURRENT_STUDENT = () => DATA.config.currentStudent;
+const STUDENTS = () => DATA.students;
+const TEACHERS = () => DATA.teachers;
+const SCHEDULE = () => DATA.schedule;
+const GRADES = () => DATA.grades;
+const HOMEWORK = () => DATA.homework;
+const MESSAGES = () => DATA.messages;
+const JOURNAL = () => DATA.journal;
+
+function norm(){
+  DATA.config = DATA.config || DEFAULT_DATA.config;
+  DATA.students = DATA.students || [];
+  DATA.teachers = DATA.teachers || {};
+  DATA.schedule = DATA.schedule || {};
+  DATA.grades = DATA.grades || [];
+  DATA.homework = DATA.homework || [];
+  DATA.messages = DATA.messages || [];
+  DATA.journal = DATA.journal || {};
+}
+
+function applyData(d){
+  DATA = d;
+  norm();
+  setRole(role, true);
+}
+
+async function loadData(){
+  // Автономный режим: данные читаем из localStorage, иначе — демо-данные
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const d = JSON.parse(raw);
+      if(d && typeof d==="object") applyData(d);
+      return;
+    }
+  }catch(e){}
+  applyData(JSON.parse(JSON.stringify(DEFAULT_DATA)));
+}
+
+function saveData(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }catch(e){}
+}
+
+/* ================= РЕНДЕР ================= */
+const NAV = [
+  {id:"overview", label:"Сводка", ic:"◧"},
+  {id:"schedule", label:"Расписание", ic:"☰"},
+  {id:"grades", label:"Оценки", ic:"✦"},
+  {id:"journal", label:"Журнал", ic:"▤"},
+  {id:"homework", label:"Домашние задания", ic:"✎"},
+  {id:"messages", label:"Сообщения", ic:"✉"}
+];
+
+let role = "student";
+let isAdmin = false;
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
+
+function avg(arr){ return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2); }
+
+function gradeColor(g){ if(g>=4)return "#1f9d6b"; if(g===3)return "#d97706"; return "#d64541"; }
+
+function switchPage(id){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.querySelectorAll(".side-btn").forEach(b=>b.classList.toggle("active", b.dataset.page===id));
+  if(id==="overview") renderOverview();
+}
+
+function setAdminMode(){
+  isAdmin = true;
+  role = "teacher"; // админ видит журнал, оценки, дз — по максимуму прав
+  $("#role-switch").classList.add("hidden");
+  $("#role-label").classList.remove("hidden");
+  document.querySelectorAll(".side-btn").forEach(b=>{ b.style.display=""; });
+  refreshRoleTexts();
+}
+
+function setRole(r){
+  role = r;
+  document.querySelectorAll(".role-switch button").forEach(b=>b.classList.toggle("active", b.dataset.role===r));
+  document.querySelectorAll(".side-btn").forEach(b=>{
+    const hide = r==="teacher" && b.dataset.page==="grades";
+    b.style.display = hide ? "none" : "";
+    if(hide && b.classList.contains("active")) switchPage("overview");
+  });
+  refreshRoleTexts();
+  try{ localStorage.setItem("vgu-role", r); }catch(e){}
+}
+
+function refreshRoleTexts(){
+  $("#sched-sub").textContent = isAdmin
+    ? "Расписание уроков всех классов."
+    : role==="teacher"
+    ? "Расписание уроков на текущую неделю."
+    : `Расписание ученика «${CURRENT_STUDENT()}» на текущую неделю.`;
+  $("#grades-sub").textContent = isAdmin
+    ? "Успеваемость всех учеников по предметам."
+    : role==="parent"
+    ? `Успеваемость ребёнка (${CURRENT_STUDENT()}) по предметам.`
+    : `Успеваемость ученика «${CURRENT_STUDENT()}» по предметам.`;
+  renderSchedule();
+  renderGrades();
+  renderJournal();
+  renderHW();
+  renderMessages();
+}
+
+/* --- Сводка --- */
+function renderOverview(){
+  const o = $("#overview");
+  o.innerHTML = "";
+  const title = el("h1","page-title", isAdmin ? "Добрый день, Администратор!" : role==="parent" ? "Добрый день, родитель!" : role==="teacher" ? "Добрый день, учитель!" : `Добрый день, ${CURRENT_STUDENT().split(" ")[0]}!`);
+  const sub = el("p","page-sub", "Ваша сводка на сегодня. Изменения сохраняются на этом устройстве.");
+  o.appendChild(title); o.appendChild(sub);
+
+  const totals = avg(GRADES().flatMap(g=>g.grades));
+  const today = SCHEDULE()["Вторник"] || [];
+  const cards = el("div","cards");
+  const mk = (k,v,tone)=>{ const c=el("div","card"+(tone?" tone "+tone:""), `<div class="k">${k}</div><div class="v">${v}</div>`); return c; };
+  cards.appendChild(mk("Средний балл (ученик)", totals, "blue"));
+  cards.appendChild(mk("Уроков сегодня", today.length, "orange"));
+  cards.appendChild(mk("Просрочено заданий", role==="teacher" ? "3 журнала" : 0, "green"));
+  if(role==="teacher") cards.appendChild(mk("Классов в ведении", STUDENTS().length));
+  else cards.appendChild(mk("Домашних заданий", HOMEWORK().length));
+  o.appendChild(cards);
+
+  const sec = el("div","section");
+  sec.innerHTML = `<h2>Расписание на сегодня — ${today.join(" · ")}</h2>
+    <p style="color:var(--muted);margin:0">Сейчас идёт вторая половина учебного дня. Впереди: ${today.slice(1).join(", ") || "уроки закончились"}.</p>`;
+  o.appendChild(sec);
+
+  const hwSec = el("div","section");
+  hwSec.innerHTML = "<h2>Ближайшие домашние задания</h2>";
+  (HOMEWORK()).slice(0,3).forEach(h=>{
+    hwSec.appendChild(el("div","hw", `<div class="subj">${h.subj}</div><h3>${h.text}</h3><div class="due">Сдать: ${h.due}</div>`));
+  });
+  o.appendChild(hwSec);
+
+  const ann = el("div","section");
+  ann.innerHTML = `<h2>Объявления</h2><div class="msg teacher"><div class="avatar">КР</div>
+    <div><h3>Классный руководитель</h3><div class="t">Родительское собрание в субботу в 10:00, актовый зал.</div></div>
+    <div class="meta">сегодня</div></div>`;
+  o.appendChild(ann);
+}
+
+/* --- Расписание --- */
+let schedDay = "Понедельник";
+function renderSchedule(){
+  const wrap = $("#sched-table");
+  wrap.innerHTML = "";
+  const days = Object.keys(SCHEDULE());
+  if(!days.length){ wrap.appendChild(el("div","placeholder","Расписание пока не заполнено.")); return; }
+  $("#sched-days").innerHTML = "";
+  days.forEach(d=>{
+    const c = el("button","chip"+(d===schedDay?" on":""), d);
+    c.type = "button";
+    $("#sched-days").appendChild(c);
+  });
+  const lessons = SCHEDULE()[schedDay] || [];
+  const tbl = el("table","");
+  const head = `<thead><tr><th>№</th><th>Время</th><th>Предмет</th><th>Учитель</th><th>Кабинет</th></tr></thead>`;
+  const times = [["08:30","09:10"],["09:20","10:00"],["10:20","11:00"],["11:20","12:00"],["12:20","13:00"],["13:10","13:50"]];
+  let rows = "";
+  lessons.forEach((s,i)=>{
+    rows += `<tr><td>${i+1}</td><td>${times[i]?times[i].join("–"):"—"}</td><td><strong>${s}</strong></td><td>${TEACHERS()[s]||"—"}</td><td>${101+i}</td></tr>`;
+  });
+  tbl.innerHTML = head+`<tbody>${rows||'<tr><td colspan="5" style="color:var(--muted)">Нет уроков.</td></tr>'}</tbody>`;
+  wrap.appendChild(tbl);
+}
+
+/* --- Оценки --- */
+function renderGrades(){
+  const sum = $("#grades-summary");
+  sum.innerHTML = "";
+  const list = GRADES();
+  if(isAdmin){
+    // Карточки: средняя успеваемость по всем ученикам
+    const studs = STUDENTS();
+    const j = JOURNAL();
+    studs.forEach(st=>{
+      let all=[];
+      Object.keys(j).forEach(subj=>{
+        const row = (j[subj]||[]).find(r=>r.name===st);
+        if(row && row.grades) all = all.concat(row.grades);
+      });
+      const v = all.length ? avg(all) : "—";
+      const tone = all.length && parseFloat(avg(all))>=4 ? "green" : all.length ? "orange" : "";
+      sum.appendChild(el("div","card"+(tone?" tone "+tone:""), `<div class="k">${st}</div><div class="v">${v}</div>`));
+    });
+    // Таблица: ученик × предмет
+    const tbl = $("#grades-table");
+    tbl.innerHTML = "<h2>Успеваемость всех учеников</h2>";
+    const t = el("table","");
+    const subjs = list.map(g=>g.subject);
+    const havg = s=>{ let a=[]; Object.keys(j).forEach(subj=>{ const row=(j[subj]||[]).find(r=>r.name===s); if(row&&row.grades) a=a.concat(row.grades); }); return a.length?avg(a):"—"; };
+    let head = "<thead><tr><th>Ученик</th>";
+    subjs.forEach(s=>head+=`<th>${s}</th>`);
+    head += "<th>Средний</th></tr></thead>";
+    let rows = "";
+    studs.forEach(st=>{
+      rows += `<tr><td><strong>${st}</strong></td>`;
+      subjs.forEach(subj=>{
+        const row=(j[subj]||[]).find(r=>r.name===st);
+        const v = row && row.grades.length ? avg(row.grades) : "—";
+        rows += `<td>${v}</td>`;
+      });
+      rows += `<td><span class="badge b-chk">${havg(st)}</span></td></tr>`;
+    });
+    t.innerHTML = head+`<tbody>${rows}</tbody>`;
+    tbl.appendChild(t);
+    return;
+  }
+  list.forEach(g=>{
+    const c = el("div","card", `<div class="k">${g.subject}</div><div class="v">${avg(g.grades)}</div>`);
+    sum.appendChild(c);
+  });
+  const tbl = $("#grades-table");
+  tbl.innerHTML = "<h2>Оценки по предметам</h2>";
+  const t = el("table","");
+  let head = "<thead><tr><th>Предмет</th><th>Средний балл</th><th>Оценки</th></tr></thead>";
+  let rows = "";
+  list.forEach(g=>{
+    const cells = g.grades.map(gr=>`<span class="grade" style="background:${gradeColor(gr)}">${gr}</span>`).join(" ");
+    rows += `<tr><td><strong>${g.subject}</strong><br><span style="color:var(--muted);font-size:12px">${TEACHERS()[g.subject]||"—"}</span></td><td><span class="badge b-good">${avg(g.grades)}</span></td><td>${cells}</td></tr>`;
+  });
+  t.innerHTML = head+`<tbody>${rows}</tbody>`;
+  tbl.appendChild(t);
+}
+
+/* --- Журнал (учитель/админ) --- */
+function renderJournal(){
+  const body = $("#journal-body");
+  body.innerHTML = "";
+
+  const subjects = Object.keys(JOURNAL());
+  if(!subjects.length){ body.appendChild(el("div","placeholder","Журнал ещё не заполнен.")); return; }
+  if(!journalSubject || !subjects.includes(journalSubject)) journalSubject = subjects[0];
+
+  const subj = journalSubject;
+  const rowsData = JOURNAL()[subj] || [];
+
+  // Переключатель предметов
+  const sel = el("div","chips");
+  subjects.forEach(s=>{
+    const c = el("button","chip"+(s===subj?" on":""), s);
+    c.type = "button";
+    c.dataset.jsubj = s;
+    sel.appendChild(c);
+  });
+  body.appendChild(sel);
+
+  const sec = el("div","section");
+  sec.innerHTML = `<h2>📘 ${subj} — ${DATA.config.className||"10 «А»"} (${TEACHERS()[subj]||"—"})</h2>
+    <p style="color:var(--muted);margin:0 0 12px">${isAdmin?"Нажмите на оценку, чтобы изменить её.":"Изменения сохраняются на этом устройстве."}</p>`;
+  const t = el("table","");
+  const maxCols = rowsData.reduce((m,r)=>Math.max(m,r.grades.length),0);
+  if(!maxCols){ body.appendChild(el("div","placeholder","В журнале пока нет записей.")); return; }
+  let head = "<thead><tr><th>Ученик</th>";
+  for(let i=0;i<maxCols;i++) head += `<th>Ур.${i+1}</th>`;
+  head += "<th>Средний</th>";
+  if(isAdmin) head += `<th></th>`;
+  head += "</tr></thead>";
+  let rows = "";
+  rowsData.forEach((s,si)=>{
+    const gs = s.grades || [];
+    let cells = "";
+    for(let i=0;i<maxCols;i++){
+      const g = gs[i];
+      if(isAdmin){
+        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn" data-jsubj="${subj}" data-si="${si}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#cbd5e1"}">${g!=null?g:"+"}</button></td>`;
+      } else {
+        cells += `<td style="text-align:center">${g!=null?`<span class="grade" style="background:${gradeColor(g)}">${g}</span>`:"—"}</td>`;
+      }
+    }
+    const avgv = gs.length ? avg(gs) : "—";
+    rows += `<tr><td><strong>${s.name}</strong></td>${cells}<td><span class="badge b-chk">${avgv}</span></td>${isAdmin?`<td class="j-avg" style="text-align:right"></td>`:""}</tr>`;
+  });
+  t.innerHTML = head+`<tbody>${rows}</tbody>`;
+  sec.appendChild(t);
+  body.appendChild(sec);
+}
+
+let journalSubject = null;
+
+/* --- Домашние задания --- */
+function renderHW(){
+  const body = $("#hw-body");
+  body.innerHTML = "";
+  const canEdit = isAdmin;
+  if(canEdit){
+    const form = el("div","section");
+    form.innerHTML = `<h2>Добавить домашнее задание</h2>
+      <div style="display:grid;gap:10px;max-width:560px">
+        <label style="font-size:13px;color:var(--muted)">Предмет<input class="textbox" id="hw-subj" value="Математика"></label>
+        <label style="font-size:13px;color:var(--muted)">Текст задания<textarea class="textbox" id="hw-text" rows="2"></textarea></label>
+        <label style="font-size:13px;color:var(--muted)">Срок сдачи<input class="textbox" id="hw-due" value="пятница"></label>
+        <div><button class="btn" id="hw-add">Добавить задание</button></div>
+      </div>`;
+    body.appendChild(form);
+    const list = el("div");
+    HOMEWORK().forEach((h,i)=>{
+      list.appendChild(el("div","hw",
+        `<div class="subj">${h.subj} · ${TEACHERS()[h.subj]||" "}</div><h3>${h.text}</h3><div class="due">Сдать: ${h.due}</div>
+         <div style="margin-top:8px"><button class="btn hw-del" type="button" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button></div>`));
+    });
+    body.appendChild(list);
+  } else {
+    const sec = el("div");
+    HOMEWORK().forEach(h=>{
+      sec.appendChild(el("div","hw"+(h.extra?" en":""),
+        `<div class="subj">${h.subj} · ${TEACHERS()[h.subj]||" "}</div><h3>${h.text}</h3>
+         <div class="due">Сдать: ${h.due}${h.extra ? " · задание повышенной сложности" : ""}</div>`));
+    });
+    if(!HOMEWORK().length) sec.appendChild(el("div","placeholder","Домашних заданий пока нет."));
+    body.appendChild(sec);
+  }
+}
+
+/* --- Сообщения --- */
+function renderMessages(){
+  const body = $("#msg-body");
+  body.innerHTML = "";
+  const list = MESSAGES();
+  if(!list.length){ body.appendChild(el("div","placeholder","Сообщений пока нет.")); }
+  list.forEach(m=>{
+    const initials = (m.from||"?").split(" ").map(w=>w[0]).join("");
+    body.appendChild(el("div","msg"+(m.role==="teacher"?" teacher":""),
+      `<div class="avatar">${initials}</div><div><h3>${m.from||"—"}</h3><div class="t">${m.text||""}</div></div><div class="meta">${m.time||""}</div>`));
+  });
+}
+
+/* --- Вход в систему --- */
+const CREDENTIALS = { student: { login:"test1", pass:"01020304" } };
+function doLogin(){
+  const user = $("#login-user").value.trim();
+  const pass = $("#login-pass").value;
+  const valid = user===CREDENTIALS.student.login && pass===CREDENTIALS.student.pass;
+  if(!valid){
+    $("#login-err").classList.remove("hidden");
+    return;
+  }
+  $("#login-err").classList.add("hidden");
+  try{ localStorage.setItem("vgu-auth","1"); localStorage.setItem("vgu-role","teacher"); }catch(e){}
+  $("#login-overlay").classList.add("hidden");
+  document.body.classList.remove("locked");
+  setAdminMode();
+  refreshRoleTexts();
+  switchPage("overview");
+}
+function requireAuth(){
+  let authed = false;
+  try{ authed = localStorage.getItem("vgu-auth")==="1"; }catch(e){}
+  if(!authed){
+    document.body.classList.add("locked");
+    $("#login-overlay").classList.remove("hidden");
+  }
+}
+
+document.addEventListener("click", function(e){
+  const loginBtn = e.target.closest("#login-submit");
+  if(loginBtn){ doLogin(); return; }
+  const pageBtn = e.target.closest(".side-btn");
+  if(pageBtn){ switchPage(pageBtn.dataset.page); return; }
+  const roleBtn = e.target.closest(".role-switch button");
+  if(roleBtn){ setRole(roleBtn.dataset.role); return; }
+  const jsubj = e.target.closest(".chip[data-jsubj]");
+  if(jsubj){ journalSubject = jsubj.dataset.jsubj; renderJournal(); return; }
+  const gcell = e.target.closest(".grade-btn");
+  if(gcell){
+    cycleGrade(gcell.dataset.jsubj, +gcell.dataset.si, +gcell.dataset.ci);
+    return;
+  }
+  const chip = e.target.closest(".chip");
+  if(chip){ schedDay = chip.textContent.trim(); renderSchedule(); return; }
+  const hwDel = e.target.closest(".hw-del");
+  if(hwDel){ deleteHW(+hwDel.dataset.i); return; }
+  if(e.target.closest("#hw-add")){
+    const subj = $("#hw-subj").value.trim();
+    const text = $("#hw-text").value.trim();
+    const due = $("#hw-due").value.trim();
+    if(!subj || !text){ alert("Заполните предмет и текст задания."); return; }
+    HOMEWORK().push({subj, text, due: due||"не указано"});
+    saveData(); renderHW();
+    return;
+  }
+  if(e.target.closest("#msg-send")){
+    const txt = $("#msg-text").value.trim();
+    if(!txt){ $("#msg-result").textContent="Введите текст сообщения."; return; }
+    MESSAGES().push({from: role==="teacher"?"Учитель":"Вы", role: role, text: txt, time: new Date().toLocaleString("ru-RU", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})});
+    saveData(); renderMessages();
+    $("#msg-text").value="";
+    $("#msg-result").textContent = "Сообщение сохранено на этом устройстве.";
+    return;
+  }
+});
+
+function cycleGrade(subj, si, ci){
+  const row = (JOURNAL()[subj]||[])[si];
+  if(!row) return;
+  row.grades = row.grades || [];
+  const seq = [2,3,4,5];
+  const cur = row.grades[ci];
+  const next = cur==null ? 2 : seq[(seq.indexOf(cur)+1)%seq.length];
+  row.grades[ci] = next;
+  saveData(); renderJournal();
+}
+
+function deleteHW(i){
+  DATA.homework.splice(i,1);
+  saveData(); renderHW();
+}
+
+let savedRole = "student";
+try{ savedRole = localStorage.getItem("vgu-role") || "student"; }catch(e){}
+(async function init(){
+  await loadData();
+  if(savedRole === "teacher"){
+    setAdminMode();
+  } else {
+    setRole(savedRole === "parent" ? "parent" : "student");
+  }
+  switchPage("overview");
+  requireAuth();
+})();
+</script>
+</body>
+</html>
