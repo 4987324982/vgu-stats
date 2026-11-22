@@ -447,10 +447,15 @@ function gradeColor(g){
   return "#d64541";
 }
 
-// Метка «зачёт»/«незачёт» по признаку предмета; по умолчанию — по среднему баллу (>=3 зачёт).
+// Метка «зачёт»/«незачёт». Если в оценках есть «нез» — незачёт, «зач» — зачёт,
+// иначе — по среднему баллу (>=3 зачёт).
 function creditLabel(subj, gs){
+  const arr = gs || [];
+  const str = String(arr.join("")).toLowerCase();
+  if(/нез|н\/а|н\/з|незач/.test(str)) return "незачёт";
+  if(/зач|зачет/.test(str)) return "зачёт";
   const cfg = DATA.config.credit && DATA.config.credit[subj];
-  const nums = (gs||[]).map(toNum).filter(v=>v!==null);
+  const nums = arr.map(toNum).filter(v=>v!==null);
   const passed = cfg ? cfg.pass : (nums.length ? (nums.reduce((a,b)=>a+b,0)/nums.length)>=3 : false);
   return passed ? "зачёт" : "незачёт";
 }
@@ -632,7 +637,7 @@ function renderGrades(){
         const g = gs[i];
         cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jsubj="${gradesSubject}" data-si="${rowIndex>=0?rowIndex:0}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Ввести: 2–5, н, -, +">${g!=null?g:"·"}</button></td>`;
       }
-      rows += `<tr><td><strong>${st}</strong></td>${cells}<td><span class="badge ${/зачёт/.test(creditLabel(gradesSubject, gs))?"b-good":"b-warn"}">${creditLabel(gradesSubject, gs)}</span></td></tr>`;
+      rows += `<tr><td><strong>${st}</strong></td>${cells}<td><span class="badge ${creditLabel(gradesSubject, gs)==="зачёт"?"b-good":"b-warn"}">${creditLabel(gradesSubject, gs)}</span></td></tr>`;
     });
     t.innerHTML = head+`<tbody>${rows}</tbody>`;
     sec.appendChild(t);
