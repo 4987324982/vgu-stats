@@ -940,6 +940,17 @@ document.addEventListener("click", function(e){
   }
   const chip = e.target.closest(".chip");
   if(chip){ schedDay = chip.textContent.trim(); renderSchedule(); return; }
+  // УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ (должно быть раньше .hw-del, т.к. кнопка имеет оба класса)
+  const userDel = e.target.closest(".user-del");
+  if(userDel){
+    const ui = +userDel.dataset.i;
+    const ua = ACCOUNTS()[ui];
+    if(!ua) return;
+    if(!confirm(`Удалить пользователя «${ua.name}» (${ua.login})?`)) return;
+    DATA.accounts.splice(ui,1);
+    saveData(); renderUsers();
+    return;
+  }
   const hwDel = e.target.closest(".hw-del");
   if(hwDel){ deleteHW(+hwDel.dataset.i); return; }
   if(e.target.closest("#hw-add")){
@@ -958,17 +969,6 @@ document.addEventListener("click", function(e){
     saveData(); renderMessages();
     $("#msg-text").value="";
     $("#msg-result").textContent = "Сообщение сохранено на этом устройстве.";
-    return;
-  }
-  // --- Пользователи ---
-  const userDel = e.target.closest(".user-del");
-  if(userDel){
-    const i = +userDel.dataset.i;
-    const a = ACCOUNTS()[i];
-    if(!a) return;
-    if(!confirm(`Удалить пользователя «${a.name}» (${a.login})?`)) return;
-    DATA.accounts.splice(i,1);
-    saveData(); renderUsers();
     return;
   }
   if(e.target.closest("#add-user")){
