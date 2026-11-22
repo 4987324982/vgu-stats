@@ -667,6 +667,7 @@ function renderJournal(){
 
   const subj = journalSubject;
   const rowsData = JOURNAL()[subj] || [];
+  const canEditJournal = isAdmin || role === "teacher";
 
   // Переключатель предметов
   const sel = el("div","chips");
@@ -680,14 +681,14 @@ function renderJournal(){
 
   const sec = el("div","section");
   sec.innerHTML = `<h2>📘 ${subj} — ${DATA.config.className||"10 «А»"} (${TEACHERS()[subj]||"—"})</h2>
-    <p style="color:var(--muted);margin:0 0 12px">${isAdmin?"Нажмите на оценку, чтобы изменить её.":"Изменения сохраняются на этом устройстве."}</p>`;
+    <p style="color:var(--muted);margin:0 0 12px">${canEditJournal?"Нажмите на оценку, чтобы изменить её (2–5, н, -, +).":"Просмотр."}</p>`;
   const t = el("table","");
   const maxCols = rowsData.reduce((m,r)=>Math.max(m,r.grades.length),0);
   if(!maxCols){ body.appendChild(el("div","placeholder","В журнале пока нет записей.")); return; }
   let head = "<thead><tr><th>Ученик</th>";
   for(let i=0;i<maxCols;i++) head += `<th>Ур.${i+1}</th>`;
   head += "<th>Средний</th>";
-  if(isAdmin) head += `<th></th>`;
+  if(canEditJournal) head += `<th></th>`;
   head += "</tr></thead>";
   let rows = "";
   rowsData.forEach((s,si)=>{
@@ -695,7 +696,7 @@ function renderJournal(){
     let cells = "";
     for(let i=0;i<maxCols;i++){
       const g = gs[i];
-      if(isAdmin){
+      if(canEditJournal){
         const disp = g!=null?g:"";
         cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jsubj="${subj}" data-si="${si}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Клик — ввести: 2–5, н, -, +">${disp!==""?disp:"·"}</button></td>`;
       } else {
@@ -703,7 +704,7 @@ function renderJournal(){
       }
     }
     const avgv = gs.length ? avg(gs) : "—";
-    rows += `<tr><td><strong>${s.name}</strong></td>${cells}<td><span class="badge b-chk">${avgv}</span></td>${isAdmin?`<td class="j-avg" style="text-align:right"></td>`:""}</tr>`;
+    rows += `<tr><td><strong>${s.name}</strong></td>${cells}<td><span class="badge b-chk">${avgv}</span></td>${canEditJournal?`<td class="j-avg" style="text-align:right"></td>`:""}</tr>`;
   });
   t.innerHTML = head+`<tbody>${rows}</tbody>`;
   sec.appendChild(t);
@@ -1051,7 +1052,7 @@ document.addEventListener("click", function(e){
 });
 
 function openGradeInput(btn){
-  if(!isAdmin) return;
+  if(!isAdmin && role !== "teacher") return;
   const subj = btn.dataset.jsubj, si=+btn.dataset.si, ci=+btn.dataset.ci;
   const cur = (JOURNAL()[subj]||[])[si]?.grades?.[ci];
   // Убрать другие открытые поля
