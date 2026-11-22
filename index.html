@@ -395,21 +395,59 @@ function applyData(d){
   refreshRoleTexts(); // перерисовка данными без смены текущей роли
 }
 
+/* ===== СИНХРОНИЗАЦИЯ через Firebase Realtime Database (общая база) ===== */
+const FB = {
+  apiKey: "AIzaSyAUvVONawnkZwUr9jJvecSnDXBraYtfR7k",
+  authDomain: "vgu-stats.firebaseapp.com",
+  projectId: "vgu-stats",
+  storageBucket: "vgu-stats.firebasestorage.app",
+  messagingSenderId: "465053441056",
+  appId: "1:465053441056:web:267008507b79e43c8df045",
+  databaseURL: "https://vgu-stats-default-rtdb.firebaseio.com"
+};
+const DB_PATH = "data";           // корневой узел базы
+let syncOn = true;                // включена ли облачная синхронизация
+
+async function fbSet(obj){
+  const res = await fetch(FB.databaseURL+"/"+DB_PATH+".json", {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(obj)
+  });
+  if(!res.ok) throw new Error("DB write "+res.status);
+}
+async function fbGet(){
+  const res = await fetch(FB.databaseURL+"/"+DB_PATH+".json");
+  if(!res.ok) throw new Error("DB read "+res.status);
+  return await res.json();
+}
+
 async function loadData(){
-  // Автономный режим: данные читаем из localStorage, иначе — демо-данные
+  // 1) Пробуем облачную базу (общую для всех пользователей)
+  if(syncOn){
+    try{
+      const d = await fbGet();
+      if(d && typeof d==="object"){ applyData(d); return; }
+    }catch(e){ syncOn = false; }
+  }
+  // 2) Если облако недоступно — localStorage
   try{
     const raw = localStorage.getItem(STORE_KEY);
     if(raw){
       const d = JSON.parse(raw);
-      if(d && typeof d==="object") applyData(d);
-      return;
+      if(d && typeof d==="object"){ applyData(d); return; }
     }
   }catch(e){}
+  // 3) Иначе — демо-данные
   applyData(JSON.parse(JSON.stringify(DEFAULT_DATA)));
 }
 
-function saveData(){
+async function saveData(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }catch(e){}
+  if(syncOn){
+    try{ await fbSet(DATA); }
+    catch(e){ /* облако недоступно — локально сохранили */ }
+  }
 }
 
 /* ================= РЕНДЕР ================= */
