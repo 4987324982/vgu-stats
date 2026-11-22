@@ -34,6 +34,8 @@
   .role-switch button:hover{color:#fff}
   .role-switch button.active{background:#fff;color:var(--brand-2);box-shadow:0 2px 8px rgba(0,0,0,.15)}
   .admin-label{margin-left:auto;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:8px 18px;border-radius:12px;font-weight:800;font-size:14px;letter-spacing:.4px;box-shadow:0 4px 14px rgba(217,119,6,.4)}
+  .logout-btn{margin-left:10px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:8px 16px;border-radius:12px;font-weight:600;font-size:14px;transition:all .2s}
+  .logout-btn:hover{background:var(--bad);border-color:var(--bad)}
 
   /* Sidebar */
   .sidebar{width:236px;background:linear-gradient(180deg,#17294e,#1c3a7a);border-right:0;padding:20px 14px;flex-shrink:0}
@@ -172,6 +174,7 @@
     <button type="button" data-role="teacher" role="tab">Учитель</button>
   </div>
   <div class="admin-label hidden" id="role-label">Администратор</div>
+  <button type="button" class="logout-btn hidden" id="logout-btn">Выйти</button>
 </div>
 
 <div class="app">
@@ -437,6 +440,7 @@ function applyRoleToUI(r){
   const isAdm = r==="admin" || (role==="teacher" && isAdmin);
   $("#role-switch").classList.toggle("hidden", isAdm || r==="teacher");
   $("#role-label").classList.toggle("hidden", !isAdm);
+  $("#logout-btn").classList.toggle("hidden", false);
   if(isAdm) $("#role-label").textContent = "Администратор";
   document.querySelectorAll(".side-btn").forEach(b=>{
     const adminOnly = b.classList.contains("admin-only");
@@ -843,14 +847,33 @@ function requireAuth(){
   try{ authed = localStorage.getItem("vgu-auth")==="1"; }catch(e){}
   if(authed){
     $("#login-overlay").classList.add("hidden");
+    $("#logout-btn").classList.remove("hidden");
     document.body.classList.remove("locked");
   } else {
     document.body.classList.add("locked");
     $("#login-overlay").classList.remove("hidden");
+    $("#logout-btn").classList.add("hidden");
   }
 }
 
+function doLogout(){
+  try{
+    localStorage.removeItem("vgu-auth");
+    localStorage.removeItem("vgu-role");
+  }catch(e){}
+  // показать экран входа
+  document.body.classList.add("locked");
+  $("#login-overlay").classList.remove("hidden");
+  $("#login-card-form").classList.remove("hidden");
+  $("#login-welcome").classList.add("hidden");
+  $("#login-err").classList.add("hidden");
+  $("#login-pass").value = "";
+  $("#logout-btn").classList.add("hidden");
+}
+
 document.addEventListener("click", function(e){
+  const logoutBtn = e.target.closest("#logout-btn");
+  if(logoutBtn){ doLogout(); return; }
   const loginBtn = e.target.closest("#login-submit");
   if(loginBtn){ doLogin(); return; }
   const pageBtn = e.target.closest(".side-btn");
