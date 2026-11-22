@@ -437,6 +437,8 @@ function avg(arr){
 }
 
 function gradeColor(g){
+  if(/^нез|^н\/а|^н\/з|^незач/i.test(String(g||""))) return "#d64541";   // незачёт
+  if(/^зач|^зачет/i.test(String(g||""))) return "#22c199";              // зачёт
   if(g==="н"||g==="н/а") return "#8b9bb0"; // пропуск
   if(g==="-") return "#d64541";            // минус
   if(g==="+") return "#22c199";            // плюс
@@ -708,8 +710,12 @@ function renderJournal(){
         cells += `<td style="text-align:center">${g!=null?`<span class="grade" style="background:${gradeColor(g)}">${g}</span>`:"—"}</td>`;
       }
     }
+    const hasMark = (gs||[]).some(g=>/^(нез|зач|незач|зачет|н\/а|н\/з)$/i.test(String(g)));
     const avgv = gs.length ? avg(gs) : "—";
-    rows += `<tr><td><strong>${s.name}</strong></td>${cells}<td><span class="badge b-chk">${avgv}</span></td>${canEditJournal?`<td class="j-avg" style="text-align:right"></td>`:""}</tr>`;
+    const midBadge = hasMark
+      ? `<span class="badge ${creditLabel(subj, gs)==="зачёт"?"b-good":"b-warn"}">${creditLabel(subj, gs)}</span>`
+      : `<span class="badge b-chk">${avgv}</span>`;
+    rows += `<tr><td><strong>${s.name}</strong></td>${cells}<td>${midBadge}</td>${canEditJournal?`<td class="j-avg" style="text-align:right"></td>`:""}</tr>`;
   });
   t.innerHTML = head+`<tbody>${rows}</tbody>`;
   sec.appendChild(t);
