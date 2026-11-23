@@ -910,8 +910,10 @@ function doLogin(){
   }, 5000);
 }
 function requireAuth(){
-  let authed = false;
-  try{ authed = localStorage.getItem("vgu-auth")==="1"; }catch(e){}
+  // Сессия считается валидной, если есть флаг авторизации И выбранная роль
+  let auth = "";
+  try{ auth = localStorage.getItem("vgu-auth"); }catch(e){}
+  const authed = auth === "1" && !!savedRole && savedRole !== "";
   if(authed){
     $("#login-overlay").classList.add("hidden");
     $("#logout-btn").classList.remove("hidden");
@@ -1126,8 +1128,20 @@ function deleteHW(i){
 
 let savedRole = "student";
 try{ savedRole = localStorage.getItem("vgu-role") || "student"; }catch(e){}
+// Прямые обработчики клика на кнопки меню — надёжнее делегирования на document
+function bindNav(){
+  document.querySelectorAll(".side-btn").forEach(b=>{
+    if(b.__boundNav) return;
+    b.__boundNav = true;
+    b.addEventListener("click", function(ev){
+      const page = this.dataset.page;
+      if(page) switchPage(page);
+    });
+  });
+}
 (async function init(){
   await loadData();
+  bindNav();
   if(savedRole === "admin" || savedRole === "teacher"){
     // Администратор — полный доступ; учитель тоже входит расширенно (журнал, оценки), но без меню «Пользователи»/«Управление»
     setRole(savedRole);
