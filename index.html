@@ -230,8 +230,6 @@
 
     <!-- ================= ЖУРНАЛ (учитель) ================= -->
     <section class="page" id="journal" aria-label="Журнал">
-      <h1 class="page-title">Классный журнал</h1>
-      <p class="page-sub">Электронный журнал — группы по предметам.</p>
       <div id="journal-body"></div>
     </section>
 
@@ -784,15 +782,14 @@ function renderJournal(){
   body.appendChild(el("div","stab",`<b>Предмет:</b>`));
   body.appendChild(ssel);
 
-  // Уровень 3: таблица
+  // Уровень 3: таблица — фиксированные 100 уроков во всех группах и предметах
+  const M = 100;
   const sec = el("div","section");
   sec.innerHTML = `<h2>📘 ${journalGroup} · ${subj} — ${TEACHERS()[subj]||"—"}</h2>
     <p style="color:var(--muted);margin:0 0 12px">${canEditJournal?"Нажмите на оценку, чтобы изменить её (2–5, н, -, +).":"Просмотр."}</p>`;
   const t = el("table","");
-  const maxCols = rowsData.reduce((m,r)=>Math.max(m,r.grades.length),0);
-  if(!maxCols){ body.appendChild(el("div","placeholder","В журнале пока нет записей.")); return; }
   let head = "<thead><tr><th>Ученик</th>";
-  for(let i=0;i<maxCols;i++) head += `<th>Ур.${i+1}</th>`;
+  for(let i=0;i<M;i++) head += `<th>Ур.${i+1}</th>`;
   head += "<th>Средний</th>";
   if(canEditJournal) head += `<th></th>`;
   head += "</tr></thead>";
@@ -800,7 +797,7 @@ function renderJournal(){
   rowsData.forEach((s,si)=>{
     const gs = s.grades || [];
     let cells = "";
-    for(let i=0;i<maxCols;i++){
+    for(let i=0;i<M;i++){
       const g = gs[i];
       if(canEditJournal){
         const disp = g!=null?g:"";
