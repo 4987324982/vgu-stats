@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -200,7 +200,7 @@
   <nav class="sidebar" id="sidebar" aria-label="Меню разделов">
     <button type="button" class="side-btn active" data-page="overview"><span class="ic">◧</span><span>Сводка</span></button>
     <button type="button" class="side-btn" data-page="schedule"><span class="ic">☰</span><span>Расписание</span></button>
-    <button type="button" class="side-btn" data-page="grades"><span class="ic">✦</span><span>Оценки</span></button>
+    
     <button type="button" class="side-btn" data-page="journal"><span class="ic">▤</span><span>Журнал</span></button>
     <button type="button" class="side-btn" data-page="homework"><span class="ic">✎</span><span>Домашние задания</span></button>
     <button type="button" class="side-btn" data-page="messages"><span class="ic">✉</span><span>Сообщения</span></button>
@@ -218,14 +218,6 @@
       <p class="page-sub" id="sched-sub">Расписание на текущую неделю.</p>
       <div class="chips" id="sched-days"></div>
       <div class="section" id="sched-table"></div>
-    </section>
-
-    <!-- ================= ОЦЕНКИ ================= -->
-    <section class="page" id="grades" aria-label="Оценки">
-      <h1 class="page-title">Оценки</h1>
-      <p class="page-sub" id="grades-sub">Успеваемость по предметам.</p>
-      <div class="cards" id="grades-summary"></div>
-      <div class="section" id="grades-table"></div>
     </section>
 
     <!-- ================= ЖУРНАЛ (учитель) ================= -->
@@ -369,7 +361,6 @@ const CURRENT_STUDENT = () => DATA.config.currentStudent;
 const STUDENTS = () => DATA.students;
 const TEACHERS = () => DATA.teachers;
 const SCHEDULE = () => DATA.schedule;
-const GRADES = () => DATA.grades;
 const HOMEWORK = () => DATA.homework;
 const MESSAGES = () => DATA.messages;
 const JOURNAL = () => DATA.journal;
@@ -416,7 +407,6 @@ function norm(){
   DATA.students = DATA.students || [];
   DATA.teachers = DATA.teachers || {};
   DATA.schedule = DATA.schedule || {};
-  DATA.grades = DATA.grades || [];
   DATA.homework = DATA.homework || [];
   DATA.messages = DATA.messages || [];
   DATA.journal = migrateJournal(DATA.journal || {});
@@ -487,7 +477,6 @@ async function saveData(){
 const NAV = [
   {id:"overview", label:"Сводка", ic:"◧"},
   {id:"schedule", label:"Расписание", ic:"☰"},
-  {id:"grades", label:"Оценки", ic:"✦"},
   {id:"journal", label:"Журнал", ic:"▤"},
   {id:"homework", label:"Домашние задания", ic:"✎"},
   {id:"messages", label:"Сообщения", ic:"✉"},
@@ -574,7 +563,7 @@ function applyRoleToUI(r){
     b.classList.remove("hidden");
     let hide = false;
     if(adminOnly && !isAdm) hide = true;
-    if(r==="teacher" && !isAdm && (b.dataset.page==="grades" || b.dataset.page==="homework" || b.dataset.page==="messages")) hide = false;
+    if(r==="teacher" && !isAdm && (b.dataset.page==="homework" || b.dataset.page==="messages")) hide = false;
     b.style.display = hide ? "none" : "";
     if(hide && b.classList.contains("active")) switchPage("overview");
   });
@@ -586,13 +575,7 @@ function refreshRoleTexts(){
     : role==="teacher"
     ? "Расписание уроков на текущую неделю."
     : `Расписание ученика «${CURRENT_STUDENT()}» на текущую неделю.`;
-  $("#grades-sub").textContent = isAdmin
-    ? "Успеваемость всех учеников по предметам."
-    : role==="parent"
-    ? `Успеваемость ребёнка (${CURRENT_STUDENT()}) по предметам.`
-    : `Успеваемость ученика «${CURRENT_STUDENT()}» по предметам.`;
   renderSchedule();
-  renderGrades();
   renderJournal();
   renderHW();
   renderMessages();
@@ -606,7 +589,9 @@ function renderOverview(){
   const sub = el("p","page-sub", "Ваша сводка на сегодня. Изменения сохраняются на этом устройстве.");
   o.appendChild(title); o.appendChild(sub);
 
-  const totals = avg(GRADES().flatMap(g=>g.grades));
+  const allG = [];
+  allJournalBlobs().forEach(b=>b.rows.forEach(r=>allG.push(...gradesArr(r.grades))));
+  const totals = avg(allG);
   const today = SCHEDULE()["Вторник"] || [];
   const cards = el("div","cards");
   const mk = (k,v,tone)=>{ const c=el("div","card"+(tone?" tone "+tone:""), `<div class="k">${k}</div><div class="v">${v}</div>`); return c; };
@@ -659,81 +644,6 @@ function renderSchedule(){
   });
   tbl.innerHTML = head+`<tbody>${rows||'<tr><td colspan="5" style="color:var(--muted)">Нет уроков.</td></tr>'}</tbody>`;
   wrap.appendChild(tbl);
-}
-
-/* --- Оценки --- */
-function renderGrades(){
-  const sum = $("#grades-summary");
-  sum.innerHTML = "";
-  const list = GRADES();
-  if(isAdmin){
-    // Карточки: средняя успеваемость по всем ученикам
-    const studs = STUDENTS();
-    const j = JOURNAL();
-    studs.forEach(st=>{
-      let all=[];
-      allJournalBlobs().forEach(b=>{
-        const row = (b.rows||[]).find(r=>r.name===st);
-        if(row && row.grades) all = all.concat(gradesArr(row.grades));
-      });
-      const v = all.length ? avg(all) : "—";
-      const tone = all.length && parseFloat(avg(all))>=4 ? "green" : all.length ? "orange" : "";
-      sum.appendChild(el("div","card"+(tone?" tone "+tone:""), `<div class="k">${st}</div><div class="v">${v}</div>`));
-    });
-    // Таблица: ученик × 100 уроков по выбранному предмету
-    const tbl = $("#grades-table");
-    tbl.innerHTML = "";
-    const subjs = JOURNAL_SUBJECTS.filter(s=>allJournalBlobs().some(b=>b.subj===s));
-    if(!subjs.includes(gradesSubject)) gradesSubject = subjs[0] || JOURNAL_SUBJECTS[0];
-    const activeGroup = journalGroup || JOURNAL_GROUPS[0];
-    // Переключатель предметов
-    const sel = el("div","chips");
-    subjs.forEach(s=>{
-      const c = el("button","chip"+(s===gradesSubject?" on":""), s);
-      c.type="button"; c.dataset.gsubj=s;
-      sel.appendChild(c);
-    });
-    tbl.appendChild(sel);
-    const M = 100; // общее число колонок-уроков
-    const sec = el("div","section");
-    sec.innerHTML = `<h2>Успеваемость — ${gradesSubject} (100 уроков)</h2>`;
-    const t = el("table","");
-    let head = "<thead><tr><th>Ученик</th>";
-    for(let i=0;i<M;i++) head += `<th>Ур.${i+1}</th>`;
-    head += "<th>Средний</th></tr></thead>";
-    let rows = "";
-    const gRows = (j[activeGroup]&&j[activeGroup][gradesSubject])||[];
-    studs.forEach(st=>{
-      const rowIndex = gRows.findIndex(r=>r.name===st);
-      const row = gRows[rowIndex];
-      const gs = row ? gradesArr(row.grades) : [];
-      let cells = "";
-      for(let i=0;i<M;i++){
-        const g = gs[i];
-        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jgroup="${activeGroup}" data-jsubj="${gradesSubject}" data-si="${rowIndex>=0?rowIndex:0}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Ввести: 2–5, н, -, +">${g!=null?g:"·"}</button></td>`;
-      }
-      rows += `<tr><td><strong>${st}</strong></td>${cells}<td><span class="badge ${creditLabel(gradesSubject, gs)==="зачёт"?"b-good":"b-warn"}">${creditLabel(gradesSubject, gs)}</span></td></tr>`;
-    });
-    t.innerHTML = head+`<tbody>${rows}</tbody>`;
-    sec.appendChild(t);
-    tbl.appendChild(sec);
-    return;
-  }
-  list.forEach(g=>{
-    const c = el("div","card", `<div class="k">${g.subject}</div><div class="v">${avg(g.grades)}</div>`);
-    sum.appendChild(c);
-  });
-  const tbl = $("#grades-table");
-  tbl.innerHTML = "<h2>Оценки по предметам</h2>";
-  const t = el("table","");
-  let head = "<thead><tr><th>Предмет</th><th>Средний балл</th><th>Оценки</th></tr></thead>";
-  let rows = "";
-  list.forEach(g=>{
-    const cells = g.grades.map(gr=>`<span class="grade" style="background:${gradeColor(gr)}">${gr}</span>`).join(" ");
-    rows += `<tr><td><strong>${g.subject}</strong><br><span style="color:var(--muted);font-size:12px">${TEACHERS()[g.subject]||"—"}</span></td><td><span class="badge b-good">${avg(g.grades)}</span></td><td>${cells}</td></tr>`;
-  });
-  t.innerHTML = head+`<tbody>${rows}</tbody>`;
-  tbl.appendChild(t);
 }
 
 /* --- Журнал (учитель/админ) --- */
@@ -820,7 +730,6 @@ function renderJournal(){
 
 let journalGroup = JOURNAL_GROUPS[0];
 let journalSubject = null;
-let gradesSubject = null;
 
 /* --- Пользователи (админ) --- */
 function renderUsers(){
@@ -1038,8 +947,6 @@ document.addEventListener("click", function(e){
   if(pageBtn){ switchPage(pageBtn.dataset.page); return; }
   const roleBtn = e.target.closest(".role-switch button");
   if(roleBtn){ setRole(roleBtn.dataset.role); return; }
-  const gsubj = e.target.closest(".chip[data-gsubj]");
-  if(gsubj){ gradesSubject = gsubj.dataset.gsubj; renderGrades(); return; }
   const jsubj = e.target.closest(".chip[data-jsubj]");
   if(jsubj){ journalSubject = jsubj.dataset.jsubj; renderJournal(); return; }
   const jgroup = e.target.closest(".chip[data-jgroup]");
@@ -1105,7 +1012,7 @@ document.addEventListener("click", function(e){
         (DATA.journal[g][subj]||[]).push({name:name, grades:[]});
       });
     });
-    saveData(); renderManage(); renderJournal(); renderGrades(); renderOverview();
+    saveData(); renderManage(); renderJournal(); renderOverview();
     return;
   }
   const delSt = e.target.closest(".del-student");
@@ -1119,7 +1026,7 @@ document.addEventListener("click", function(e){
         DATA.journal[g][subj] = (DATA.journal[g][subj]||[]).filter(r=>r.name!==name);
       });
     });
-    saveData(); renderManage(); renderJournal(); renderGrades(); renderOverview();
+    saveData(); renderManage(); renderJournal(); renderOverview();
     return;
   }
   if(e.target.closest("#add-subject")){
@@ -1131,8 +1038,7 @@ document.addEventListener("click", function(e){
     JOURNAL_GROUPS.forEach(g=>{
       DATA.journal[g][subjName] = DATA.students.map(name=>({name, grades:[]}));
     });
-    DATA.grades.push({subject:subjName, grades:[]});
-    saveData(); renderManage(); renderJournal(); renderGrades(); renderSchedule();
+    saveData(); renderManage(); renderJournal(); renderSchedule();
     return;
   }
   const delSub = e.target.closest(".del-subject");
@@ -1142,11 +1048,10 @@ document.addEventListener("click", function(e){
     if(!confirm(`Удалить предмет «${subjName}»? Данные по нему будут удалены.`)) return;
     delete DATA.teachers[subjName];
     JOURNAL_GROUPS.forEach(g=>{ delete DATA.journal[g][subjName]; });
-    DATA.grades = DATA.grades.filter(g=>g.subject!==subjName);
     Object.keys(DATA.schedule).forEach(d=>{
       DATA.schedule[d] = DATA.schedule[d].filter(s=>s!==subjName);
     });
-    saveData(); renderManage(); renderJournal(); renderGrades(); renderSchedule();
+    saveData(); renderManage(); renderJournal(); renderSchedule();
     return;
   }
   const saveSch = e.target.closest(".save-sched");
@@ -1209,7 +1114,7 @@ function setGrade(group, subj, si, ci, raw){
   row.grades = gradesArr(row.grades);
   const v = raw==="" ? null : raw;
   row.grades[ci] = v;
-  saveData(); renderJournal(); renderGrades();
+  saveData(); renderJournal();
 }
 
 function cycleGrade(group, subj, si, ci){ setGrade(group, subj, si, ci, null); }
