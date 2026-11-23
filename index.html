@@ -672,6 +672,70 @@ function gradesArr(g){
   if(g && typeof g === "object") return Object.keys(g).sort((a,b)=>Number(a)-Number(b)).map(k=>g[k]);
   return [];
 }
+
+// --- Экспорт оценок в Word (.doc) ---
+function avgDisplay(arr){
+  const nums = (arr||[]).map(toNum).filter(v=>v!==null);
+  return nums.length ? (nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2) : "—";
+}
+function exportGradesDoc(title, groups){
+  // groups: [{name, subjects:[{subj, rows:[{name, grades}]}]}]
+  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Оценки</title></head><body>`;
+  html += `<h1 style="font-family:Arial">${title}</h1>`;
+  const f = (t,size,pad)=>{ const d=document.createElement("td"); d.innerHTML=t; d.style.fontSize=size?size+"px":""; d.style.padding=pad||"3px 6px"; d.style.border="1px solid #888"; return d; };
+  groups.forEach(g=>{
+    html += `<h2 style="font-family:Arial">Группа: ${g.name}</h2>`;
+    g.subjects.forEach(s=>{
+      html += `<h3 style="font-family:Arial">${s.subj}</h3>`;
+      html += `<table style="border-collapse:collapse">`;
+      html += `<tr><td style="border:1px solid #888;padding:3px 6px;font-weight:bold;background:#eee">Ученик</td>`;
+      let maxCols = 0;
+      s.rows.forEach(r=>{ if(r.grades.length > maxCols) maxCols = r.grades.length; });
+      for(let i=0;i<maxCols;i++) html += `<td style="border:1px solid #888;padding:3px 6px;font-weight:bold;background:#eee">Ур.${i+1}</td>`;
+      html += `<td style="border:1px solid #888;padding:3px 6px;font-weight:bold;background:#eee">Средний</td></tr>`;
+      s.rows.forEach(r=>{
+        html += `<tr><td style="border:1px solid #888;padding:3px 6px">${r.name}</td>`;
+        for(let i=0;i<maxCols;i++){
+          const g = r.grades[i];
+          html += `<td style="border:1px solid #888;padding:3px 6px;text-align:center">${g!=null?g:"&nbsp;"}</td>`;
+        }
+        html += `<td style="border:1px solid #888;padding:3px 6px;font-weight:bold">${avgDisplay(r.grades)}</td></tr>`;
+      });
+      html += `</table><br>`;
+    });
+  });
+  html += `</body></html>`;
+  const blob = new Blob(['\ufeff'+html], {type:"application/msword"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = title.replace(/\s+/g,"_")+".doc";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+// Собрать оценки ученика (его группа, все предметы)
+function exportStudentDoc(){
+  const name = CURRENT_STUDENT();
+  const g = studentGroup(name);
+  const subjects = JOURNAL_SUBJECTS.filter(s=>DATA.journal[g] && DATA.journal[g][s]).map(s=>({
+    subj:s,
+    rows:(DATA.journal[g][s]||[]).filter(r=>r.name===name).map(r=>({name:r.name, grades:gradesArr(r.grades)}))
+  })).filter(s=>s.rows.length);
+  exportGradesDoc("Табель оценок — "+name+" ("+g+")", [{name:g, subjects}]);
+}
+// Собрать все оценки: все группы × все предметы × все ученики
+function exportAllDoc(){
+  const groups = JOURNAL_GROUPS.filter(gg=>DATA.journal[gg]).map(gg=>({
+    name:gg,
+    subjects:JOURNAL_SUBJECTS.filter(s=>DATA.journal[gg] && DATA.journal[gg][s]).map(s=>({
+      subj:s,
+      rows:(DATA.journal[gg][s]||[]).map(r=>({name:r.name, grades:gradesArr(r.grades)}))
+    }))
+  }));
+  exportGradesDoc("Все оценки — все группы и курсы", groups);
+}
 function renderJournal(){
   const body = $("#journal-body");
   body.innerHTML = "";
@@ -717,6 +781,27 @@ function renderJournal(){
   });
   body.appendChild(el("div","stab",`<b>Предмет:</b>`));
   body.appendChild(ssel);
+
+  // Кнопки скачивания оценок
+  const dlRow = el("div","mrow", "");
+  dlRow.style.marginBottom = "10px";
+  dlRow.style.gap = "8px";
+  if(isStudentView){
+    const b = el("button","btn", "⬇ Скачать мои оценки (Word)");
+    b.type = "button";
+    b.id = "dl-my";
+    dlRow.appendChild(b);
+  } else {
+    const b1 = el("button","btn", "⬇ Скачать все оценки (Word)");
+    b1.type = "button";
+    b1.id = "dl-all";
+    dlRow.appendChild(b1);
+    const b2 = el("button","btn", `⬇ Скачать оценки этой группы (${journalGroup})`);
+    b2.type = "button";
+    b2.id = "dl-group";
+    dlRow.appendChild(b2);
+  }
+  body.appendChild(dlRow);
 
   // Уровень 3: таблица — фиксированные 100 уроков во всех группах и предметах
   const M = 100;
@@ -1045,6 +1130,20 @@ document.addEventListener("click", function(e){
   if(pageBtn){ switchPage(pageBtn.dataset.page); return; }
   const roleBtn = e.target.closest(".role-switch button");
   if(roleBtn){ setRole(roleBtn.dataset.role); return; }
+  if(e.target.closest("#dl-my")){ exportStudentDoc(); return; }
+  if(e.target.closest("#dl-all")){ exportAllDoc(); return; }
+  if(e.target.closest("#dl-group")){
+    const g = journalGroup || JOURNAL_GROUPS[0];
+    const group = JOURNAL_GROUPS.filter(gg=>gg===g).map(gg=>({
+      name:gg,
+      subjects:JOURNAL_SUBJECTS.filter(s=>DATA.journal[gg] && DATA.journal[gg][s]).map(s=>({
+        subj:s,
+        rows:(DATA.journal[gg][s]||[]).map(r=>({name:r.name, grades:gradesArr(r.grades)}))
+      }))
+    }));
+    exportGradesDoc("Оценки — "+g, group);
+    return;
+  }
   const jsubj = e.target.closest(".chip[data-jsubj]");
   if(jsubj){ journalSubject = jsubj.dataset.jsubj; renderJournal(); return; }
   const jgroup = e.target.closest(".chip[data-jgroup]");
