@@ -788,9 +788,9 @@ function renderUsers(){
     </div>`;
   body.appendChild(form);
 
-  // Таблица всех пользователей
+  // Таблица всех пользователей (пароли скрыты)
   const sec = el("div","section");
-  sec.innerHTML = "<h2>Все пользователи</h2>";
+  sec.innerHTML = "<h2>Все пользователи</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Пароли скрыты в целях безопасности. Чтобы изменить пароль, нажмите «Сменить пароль».</p>";
   const t = el("table","");
   let head = "<thead><tr><th>Роль</th><th>Имя</th><th>Логин</th><th>Пароль</th><th></th></tr></thead>";
   let rows = "";
@@ -799,9 +799,10 @@ function renderUsers(){
       <td><span class="badge ${a.role==="admin"?"b-warn":a.role==="teacher"?"b-chk":"b-good"}">${roleNames[a.role]||a.role}</span></td>
       <td><strong>${a.name}</strong></td>
       <td><code>${a.login}</code></td>
-      <td><code>${a.pass}</code></td>
-      <td style="text-align:right"><button type="button" class="btn hw-del user-del" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button></td>
-    </tr>`;
+      <td><span class="pass-mask">••••••</span>
+          <input class="textbox pass-edit hidden" data-i="${i}" placeholder="Новый пароль" style="width:120px;padding:3px 6px;font-size:13px">
+          <button type="button" class="btn pass-toggle" data-i="${i}" style="padding:4px 8px;font-size:12px;margin-left:6px">Сменить пароль</button></td>
+      <td style="text-align:right"><button type="button" class="btn hw-del user-del" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button></td></tr>`;
   });
   t.innerHTML = head+`<tbody>${rows}</tbody>`;
   sec.appendChild(t);
@@ -1016,6 +1017,25 @@ document.addEventListener("click", function(e){
     if(!confirm(`Удалить пользователя «${ua.name}» (${ua.login})?`)) return;
     DATA.accounts.splice(ui,1);
     saveData(); renderUsers();
+    return;
+  }
+  const passToggle = e.target.closest(".pass-toggle");
+  if(passToggle){
+    const row = passToggle.closest("tr");
+    const mask = row.querySelector(".pass-mask");
+    const edit = row.querySelector(".pass-edit");
+    if(edit.classList.contains("hidden")){
+      edit.classList.remove("hidden");
+      edit.focus();
+      passToggle.textContent = "Готово";
+    } else {
+      const val = edit.value.trim();
+      if(!val){ alert("Введите новый пароль."); return; }
+      const ui = +passToggle.dataset.i;
+      const ua = ACCOUNTS()[ui];
+      if(ua){ ua.pass = val; saveData(); }
+      renderUsers();
+    }
     return;
   }
   const hwDel = e.target.closest(".hw-del");
