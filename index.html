@@ -377,6 +377,41 @@ const MESSAGES = () => DATA.messages;
 const JOURNAL = () => DATA.journal;
 const ACCOUNTS = () => DATA.accounts;
 
+// Группы и предметы журнала (двухуровневая структура: группа → предмет → ученики)
+const JOURNAL_GROUPS = ["РиУПО 1.1", "РиУПО 1.2"];
+const JOURNAL_SUBJECTS = ["Математика","Русский язык","Английский","География","История России","История","Физкультура","Биология","Химия"];
+
+function allJournalBlobs(){
+  // Плоский список: {group, subj, rows} — удобно для обхода всех ячеек журнала
+  const out = [];
+  JOURNAL_GROUPS.forEach(g=>{
+    const gsub = DATA.journal[g] || {};
+    Object.keys(gsub).forEach(s=>out.push({group:g, subj:s, rows:gsub[s] || []}));
+  });
+  return out;
+}
+
+// Миграция: старый формат {предмет:[...]} → новый {группа:{предмет:[...]}}
+function migrateJournal(j){
+  const out = {};
+  JOURNAL_GROUPS.forEach(g=>out[g] = {});
+  if(j && typeof j === "object"){
+    // уже новый формат — переносим существующие группы
+    JOURNAL_GROUPS.forEach(g=>{ if(j[g] && typeof j[g]==="object" && !Array.isArray(j[g])) out[g]=j[g]; });
+    // старые одиночные предметы — в первую группу
+    Object.keys(j).forEach(k=>{
+      if(Array.isArray(j[k]) && !JOURNAL_GROUPS.includes(k)) out[JOURNAL_GROUPS[0]][k] = j[k];
+    });
+  }
+  // гарантируем наличие всех предметов во всех группах (с учениками из общего списка)
+  JOURNAL_GROUPS.forEach(g=>{
+    JOURNAL_SUBJECTS.forEach(s=>{
+      if(!out[g][s]) out[g][s] = DATA.students.map(n=>({name:n, grades:[]}));
+    });
+  });
+  return out;
+}
+
 function norm(){
   DATA.config = DATA.config || DEFAULT_DATA.config;
   DATA.accounts = DATA.accounts || DEFAULT_DATA.accounts;
@@ -386,7 +421,7 @@ function norm(){
   DATA.grades = DATA.grades || [];
   DATA.homework = DATA.homework || [];
   DATA.messages = DATA.messages || [];
-  DATA.journal = DATA.journal || {};
+  DATA.journal = migrateJournal(DATA.journal || {});
 }
 
 function applyData(d){
@@ -639,9 +674,9 @@ function renderGrades(){
     const j = JOURNAL();
     studs.forEach(st=>{
       let all=[];
-      Object.keys(j).forEach(subj=>{
-        const row = (j[subj]||[]).find(r=>r.name===st);
-        if(row && row.grades) all = all.concat(row.grades);
+      allJournalBlobs().forEach(b=>{
+        const row = (b.rows||[]).find(r=>r.name===st);
+        if(row && row.grades) all = all.concat(gradesArr(row.grades));
       });
       const v = all.length ? avg(all) : "—";
       const tone = all.length && parseFloat(avg(all))>=4 ? "green" : all.length ? "orange" : "";
@@ -650,8 +685,9 @@ function renderGrades(){
     // Таблица: ученик × 100 уроков по выбранному предмету
     const tbl = $("#grades-table");
     tbl.innerHTML = "";
-    const subjs = Object.keys(j);
-    if(!subjs.includes(gradesSubject)) gradesSubject = subjs[0];
+    const subjs = JOURNAL_SUBJECTS.filter(s=>allJournalBlobs().some(b=>b.subj===s));
+    if(!subjs.includes(gradesSubject)) gradesSubject = subjs[0] || JOURNAL_SUBJECTS[0];
+    const activeGroup = journalGroup || JOURNAL_GROUPS[0];
     // Переключатель предметов
     const sel = el("div","chips");
     subjs.forEach(s=>{
@@ -668,14 +704,15 @@ function renderGrades(){
     for(let i=0;i<M;i++) head += `<th>Ур.${i+1}</th>`;
     head += "<th>Средний</th></tr></thead>";
     let rows = "";
+    const gRows = (j[activeGroup]&&j[activeGroup][gradesSubject])||[];
     studs.forEach(st=>{
-      const rowIndex = (j[gradesSubject]||[]).findIndex(r=>r.name===st);
-      const row=(j[gradesSubject]||[])[rowIndex];
-      const gs = row ? (row.grades||[]) : [];
+      const rowIndex = gRows.findIndex(r=>r.name===st);
+      const row = gRows[rowIndex];
+      const gs = row ? gradesArr(row.grades) : [];
       let cells = "";
       for(let i=0;i<M;i++){
         const g = gs[i];
-        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jsubj="${gradesSubject}" data-si="${rowIndex>=0?rowIndex:0}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Ввести: 2–5, н, -, +">${g!=null?g:"·"}</button></td>`;
+        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jgroup="${activeGroup}" data-jsubj="${gradesSubject}" data-si="${rowIndex>=0?rowIndex:0}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Ввести: 2–5, н, -, +">${g!=null?g:"·"}</button></td>`;
       }
       rows += `<tr><td><strong>${st}</strong></td>${cells}<td><span class="badge ${creditLabel(gradesSubject, gs)==="зачёт"?"b-good":"b-warn"}">${creditLabel(gradesSubject, gs)}</span></td></tr>`;
     });
@@ -712,26 +749,44 @@ function renderJournal(){
   const body = $("#journal-body");
   body.innerHTML = "";
 
-  const subjects = Object.keys(JOURNAL());
-  if(!subjects.length){ body.appendChild(el("div","placeholder","Журнал ещё не заполнен.")); return; }
-  if(!journalSubject || !subjects.includes(journalSubject)) journalSubject = subjects[0];
-
-  const subj = journalSubject;
-  const rowsData = (JOURNAL()[subj] || []).map(r=>({name:r.name, grades:gradesArr(r.grades)}));
   const canEditJournal = isAdmin || role === "teacher";
 
-  // Переключатель предметов
-  const sel = el("div","chips");
-  subjects.forEach(s=>{
+  // Уровень 1: выбор группы
+  if(!journalGroup || !JOURNAL_GROUPS.includes(journalGroup)) journalGroup = JOURNAL_GROUPS[0];
+  const gsel = el("div","chips");
+  JOURNAL_GROUPS.forEach(g=>{
+    const c = el("button","chip"+(g===journalGroup?" on":""), g);
+    c.type = "button";
+    c.dataset.jgroup = g;
+    gsel.appendChild(c);
+  });
+  body.appendChild(el("div","stab",`<b>Группа:</b>`));
+  body.appendChild(gsel);
+
+  const subs = JOURNAL_SUBJECTS.filter(s=>DATA.journal[journalGroup] && DATA.journal[journalGroup][s]);
+
+  // Уровень 2: выбор предмета
+  if(!journalSubject || !subs.includes(journalSubject)) journalSubject = subs[0];
+  const subj = journalSubject;
+  const rowsData = subj ? (DATA.journal[journalGroup][subj]||[]).map(r=>({name:r.name, grades:gradesArr(r.grades)})) : [];
+
+  if(!subj){
+    body.appendChild(el("div","placeholder","Выберите предмет."));
+    return;
+  }
+  const ssel = el("div","chips");
+  subs.forEach(s=>{
     const c = el("button","chip"+(s===subj?" on":""), s);
     c.type = "button";
     c.dataset.jsubj = s;
-    sel.appendChild(c);
+    ssel.appendChild(c);
   });
-  body.appendChild(sel);
+  body.appendChild(el("div","stab",`<b>Предмет:</b>`));
+  body.appendChild(ssel);
 
+  // Уровень 3: таблица
   const sec = el("div","section");
-  sec.innerHTML = `<h2>📘 ${subj} — ${DATA.config.className||"10 «А»"} (${TEACHERS()[subj]||"—"})</h2>
+  sec.innerHTML = `<h2>📘 ${journalGroup} · ${subj} — ${TEACHERS()[subj]||"—"}</h2>
     <p style="color:var(--muted);margin:0 0 12px">${canEditJournal?"Нажмите на оценку, чтобы изменить её (2–5, н, -, +).":"Просмотр."}</p>`;
   const t = el("table","");
   const maxCols = rowsData.reduce((m,r)=>Math.max(m,r.grades.length),0);
@@ -749,7 +804,7 @@ function renderJournal(){
       const g = gs[i];
       if(canEditJournal){
         const disp = g!=null?g:"";
-        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jsubj="${subj}" data-si="${si}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Клик — ввести: 2–5, н, -, +">${disp!==""?disp:"·"}</button></td>`;
+        cells += `<td style="text-align:center"><button type="button" class="grade grade-btn gedit" data-jgroup="${journalGroup}" data-jsubj="${subj}" data-si="${si}" data-ci="${i}" data-val="${g!=null?g:0}" style="background:${g!=null?gradeColor(g):"#eef2f6"}" title="Клик — ввести: 2–5, н, -, +">${disp!==""?disp:"·"}</button></td>`;
       } else {
         cells += `<td style="text-align:center">${g!=null?`<span class="grade" style="background:${gradeColor(g)}">${g}</span>`:"—"}</td>`;
       }
@@ -766,6 +821,7 @@ function renderJournal(){
   body.appendChild(sec);
 }
 
+let journalGroup = JOURNAL_GROUPS[0];
 let journalSubject = null;
 let gradesSubject = null;
 
@@ -989,6 +1045,8 @@ document.addEventListener("click", function(e){
   if(gsubj){ gradesSubject = gsubj.dataset.gsubj; renderGrades(); return; }
   const jsubj = e.target.closest(".chip[data-jsubj]");
   if(jsubj){ journalSubject = jsubj.dataset.jsubj; renderJournal(); return; }
+  const jgroup = e.target.closest(".chip[data-jgroup]");
+  if(jgroup){ journalGroup = jgroup.dataset.jgroup; journalSubject = null; renderJournal(); return; }
   const gcell = e.target.closest(".gedit");
   if(gcell){
     openGradeInput(gcell);
@@ -1044,9 +1102,11 @@ document.addEventListener("click", function(e){
     if(!name){ alert("Введите ФИО ученика."); return; }
     if(STUDENTS().includes(name)){ alert("Такой ученик уже есть."); return; }
     DATA.students.push(name);
-    // добавить строку во все предметы журнала
-    Object.keys(DATA.journal).forEach(subj=>{
-      (DATA.journal[subj]||[]).push({name:name, grades:[]});
+    // добавить строку во все предметы во всех группах журнала
+    JOURNAL_GROUPS.forEach(g=>{
+      Object.keys(DATA.journal[g]||{}).forEach(subj=>{
+        (DATA.journal[g][subj]||[]).push({name:name, grades:[]});
+      });
     });
     saveData(); renderManage(); renderJournal(); renderGrades(); renderOverview();
     return;
@@ -1057,8 +1117,10 @@ document.addEventListener("click", function(e){
     const name = DATA.students[i];
     if(!confirm(`Удалить ученика «${name}»?`)) return;
     DATA.students.splice(i,1);
-    Object.keys(DATA.journal).forEach(subj=>{
-      DATA.journal[subj] = (DATA.journal[subj]||[]).filter(r=>r.name!==name);
+    JOURNAL_GROUPS.forEach(g=>{
+      Object.keys(DATA.journal[g]||{}).forEach(subj=>{
+        DATA.journal[g][subj] = (DATA.journal[g][subj]||[]).filter(r=>r.name!==name);
+      });
     });
     saveData(); renderManage(); renderJournal(); renderGrades(); renderOverview();
     return;
@@ -1069,7 +1131,9 @@ document.addEventListener("click", function(e){
     if(!subjName){ alert("Введите предмет."); return; }
     if(TEACHERS()[subjName]){ alert("Такой предмет уже есть."); return; }
     DATA.teachers[subjName] = tName || "—";
-    DATA.journal[subjName] = DATA.students.map(name=>({name, grades:[]}));
+    JOURNAL_GROUPS.forEach(g=>{
+      DATA.journal[g][subjName] = DATA.students.map(name=>({name, grades:[]}));
+    });
     DATA.grades.push({subject:subjName, grades:[]});
     saveData(); renderManage(); renderJournal(); renderGrades(); renderSchedule();
     return;
@@ -1080,7 +1144,7 @@ document.addEventListener("click", function(e){
     const subjName = Object.keys(TEACHERS())[i];
     if(!confirm(`Удалить предмет «${subjName}»? Данные по нему будут удалены.`)) return;
     delete DATA.teachers[subjName];
-    delete DATA.journal[subjName];
+    JOURNAL_GROUPS.forEach(g=>{ delete DATA.journal[g][subjName]; });
     DATA.grades = DATA.grades.filter(g=>g.subject!==subjName);
     Object.keys(DATA.schedule).forEach(d=>{
       DATA.schedule[d] = DATA.schedule[d].filter(s=>s!==subjName);
@@ -1108,8 +1172,9 @@ document.addEventListener("click", function(e){
 
 function openGradeInput(btn){
   if(!isAdmin && role !== "teacher") return;
+  const group = btn.dataset.jgroup || journalGroup || JOURNAL_GROUPS[0];
   const subj = btn.dataset.jsubj, si=+btn.dataset.si, ci=+btn.dataset.ci;
-  const gs = gradesArr((JOURNAL()[subj]||[])[si]?.grades);
+  const gs = gradesArr((DATA.journal[group] && DATA.journal[group][subj]||[])[si]?.grades);
   const cur = gs[ci];
   // Убрать другие открытые поля
   document.querySelectorAll(".gcell-input").forEach(i=>{ if(i.dataset.gcell!=="1") i.remove(); });
@@ -1118,7 +1183,7 @@ function openGradeInput(btn){
   input.type = "text";
   input.maxLength = 3;
   input.value = cur!=null ? String(cur) : "";
-  input.dataset.subj=subj; input.dataset.si=si; input.dataset.ci=ci;
+  input.dataset.jgroup=group; input.dataset.subj=subj; input.dataset.si=si; input.dataset.ci=ci;
   input.style.width="34px"; input.style.padding="4px"; input.style.textAlign="center"; input.style.fontWeight="700"; input.style.height="32px";
   const td = btn.parentElement;
   td.textContent = "";
@@ -1133,22 +1198,24 @@ document.addEventListener("keydown", function(e){
   if(!inp) return;
   if(e.key==="Enter" || e.key==="Tab"){
     e.preventDefault();
-    setGrade(inp.dataset.subj, +inp.dataset.si, +inp.dataset.ci, inp.value.trim());
+    setGrade(inp.dataset.jgroup, inp.dataset.subj, +inp.dataset.si, +inp.dataset.ci, inp.value.trim());
     return;
   }
   if(e.key==="Escape"){ renderJournal(); return; }
 });
 
-function setGrade(subj, si, ci, raw){
-  const row = (JOURNAL()[subj]||[])[si];
+function setGrade(group, subj, si, ci, raw){
+  group = group || journalGroup || JOURNAL_GROUPS[0];
+  const rows = (DATA.journal[group] && DATA.journal[group][subj]) || [];
+  const row = rows[si];
   if(!row) return;
   row.grades = gradesArr(row.grades);
   const v = raw==="" ? null : raw;
   row.grades[ci] = v;
-  saveData(); renderJournal();
+  saveData(); renderJournal(); renderGrades();
 }
 
-function cycleGrade(subj, si, ci){ setGrade(subj,si,ci,null); }
+function cycleGrade(group, subj, si, ci){ setGrade(group, subj, si, ci, null); }
 
 function deleteHW(i){
   DATA.homework.splice(i,1);
