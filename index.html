@@ -186,7 +186,7 @@
   </div>
 </div>
 <div class="topbar">
-  <div class="brand"><span class="mark"><img src="icon-64.png" alt="ВГУstats"></span><span>ВГУstats</span></div>
+  <div class="brand" id="home-btn" role="button" tabindex="0" aria-label="На главный экран" title="На главный экран"><span class="mark"><img src="icon-64.png" alt="ВГУstats"></span><span>ВГУstats</span></div>
   <div class="role-switch" id="role-switch" role="tablist" aria-label="Выбор роли">
     <button type="button" class="active" data-role="student" role="tab">Ученик</button>
     <button type="button" data-role="parent" role="tab">Родитель</button>
@@ -989,6 +989,8 @@ function doLogout(){
 }
 
 document.addEventListener("click", function(e){
+  const homeBtn = e.target.closest("#home-btn");
+  if(homeBtn){ switchPage("overview"); return; }
   const logoutBtn = e.target.closest("#logout-btn");
   if(logoutBtn){ doLogout(); return; }
   const loginBtn = e.target.closest("#login-submit");
