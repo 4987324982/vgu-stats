@@ -702,6 +702,12 @@ function renderGrades(){
 }
 
 /* --- Журнал (учитель/админ) --- */
+// Firebase REST отдаёт разреженные массивы как объекты с числовыми ключами — нормализуем в массив
+function gradesArr(g){
+  if(Array.isArray(g)) return g;
+  if(g && typeof g === "object") return Object.keys(g).sort((a,b)=>Number(a)-Number(b)).map(k=>g[k]);
+  return [];
+}
 function renderJournal(){
   const body = $("#journal-body");
   body.innerHTML = "";
@@ -711,7 +717,7 @@ function renderJournal(){
   if(!journalSubject || !subjects.includes(journalSubject)) journalSubject = subjects[0];
 
   const subj = journalSubject;
-  const rowsData = JOURNAL()[subj] || [];
+  const rowsData = (JOURNAL()[subj] || []).map(r=>({name:r.name, grades:gradesArr(r.grades)}));
   const canEditJournal = isAdmin || role === "teacher";
 
   // Переключатель предметов
@@ -1103,7 +1109,8 @@ document.addEventListener("click", function(e){
 function openGradeInput(btn){
   if(!isAdmin && role !== "teacher") return;
   const subj = btn.dataset.jsubj, si=+btn.dataset.si, ci=+btn.dataset.ci;
-  const cur = (JOURNAL()[subj]||[])[si]?.grades?.[ci];
+  const gs = gradesArr((JOURNAL()[subj]||[])[si]?.grades);
+  const cur = gs[ci];
   // Убрать другие открытые поля
   document.querySelectorAll(".gcell-input").forEach(i=>{ if(i.dataset.gcell!=="1") i.remove(); });
   const input = document.createElement("input");
@@ -1135,7 +1142,7 @@ document.addEventListener("keydown", function(e){
 function setGrade(subj, si, ci, raw){
   const row = (JOURNAL()[subj]||[])[si];
   if(!row) return;
-  row.grades = row.grades || [];
+  row.grades = gradesArr(row.grades);
   const v = raw==="" ? null : raw;
   row.grades[ci] = v;
   saveData(); renderJournal();
