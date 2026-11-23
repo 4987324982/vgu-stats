@@ -311,6 +311,7 @@ const DEFAULT_DATA = {
     {role:"student", name:"Иван Петров", login:"ivan", pass:"12345"}
   ],
   students: ["Анна Смирнова","Иван Петров","Мария Козлова","Дмитрий Соколов","Полина Морозова","Артём Волков"],
+  studentGroups: {"Анна Смирнова":"РиУПО-1","Иван Петров":"РиУПО-1","Мария Козлова":"РиУПО-1","Дмитрий Соколов":"РиУПО-1","Полина Морозова":"РиУПО-2","Артём Волков":"РиУПО-2"},
   teachers: {
     "Математика":"Иванова О. П.","Русский язык":"Сидорова Н. В.","Физика":"Кузнецов А. С.",
     "История":"Морозова Е. И.","Информатика":"Павлов Д. А.","Английский язык":"Лебедева Ю. М.",
@@ -359,6 +360,7 @@ const DEFAULT_DATA = {
 let DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
 const CURRENT_STUDENT = () => DATA.config.currentStudent;
 const STUDENTS = () => DATA.students;
+const studentGroup = n => DATA.studentGroups && DATA.studentGroups[n] || JOURNAL_GROUPS[0];
 const TEACHERS = () => DATA.teachers;
 const SCHEDULE = () => DATA.schedule;
 const HOMEWORK = () => DATA.homework;
@@ -412,6 +414,11 @@ function norm(){
   DATA.config = DATA.config || DEFAULT_DATA.config;
   DATA.accounts = DATA.accounts || DEFAULT_DATA.accounts;
   DATA.students = DATA.students || [];
+  DATA.studentGroups = DATA.studentGroups || {};
+  // Назначаем группу по умолчанию ученикам, у которых её ещё нет (первые — РиУПО-1, далее — РиУПО-2)
+  DATA.students.forEach((n,i)=>{
+    if(!DATA.studentGroups[n]) DATA.studentGroups[n] = JOURNAL_GROUPS[i < Math.ceil(DATA.students.length/2) ? 0 : 1] || JOURNAL_GROUPS[0];
+  });
   DATA.teachers = DATA.teachers || {};
   DATA.schedule = DATA.schedule || {};
   DATA.homework = DATA.homework || [];
@@ -495,6 +502,7 @@ let role = "student";
 let isAdmin = false;
 const $ = s => document.querySelector(s);
 const el = (tag, cls, html) => { const e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; };
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
 function toNum(g){ return (typeof g==="number" || /^-?\d+(\.\d+)?$/.test(String(g))) ? Number(g) : null; }
 
@@ -641,13 +649,15 @@ function renderSchedule(){
     c.type = "button";
     $("#sched-days").appendChild(c);
   });
-  const lessons = SCHEDULE()[schedDay] || [];
+  const lessons = (SCHEDULE()[schedDay]||[]).map(u=>typeof u==="string"?{subj:u,teacher:TEACHERS()[u]||"",room:"",time:""}:(u||{}));
   const tbl = el("table","");
   const head = `<thead><tr><th>№</th><th>Время</th><th>Предмет</th><th>Учитель</th><th>Кабинет</th></tr></thead>`;
   const times = [["08:30","09:10"],["09:20","10:00"],["10:20","11:00"],["11:20","12:00"],["12:20","13:00"],["13:10","13:50"]];
   let rows = "";
-  lessons.forEach((s,i)=>{
-    rows += `<tr><td>${i+1}</td><td>${times[i]?times[i].join("–"):"—"}</td><td><strong>${s}</strong></td><td>${TEACHERS()[s]||"—"}</td><td>${101+i}</td></tr>`;
+  lessons.forEach((u,i)=>{
+    const subj = u.subj || "";
+    const time = u.time || (times[i]?times[i].join("–"):"—");
+    rows += `<tr><td>${i+1}</td><td>${esc(time)}</td><td><strong>${esc(subj)}</strong></td><td>${esc(u.teacher||TEACHERS()[subj]||"—")}</td><td>${esc(u.room||"—")}</td></tr>`;
   });
   tbl.innerHTML = head+`<tbody>${rows||'<tr><td colspan="5" style="color:var(--muted)">Нет уроков.</td></tr>'}</tbody>`;
   wrap.appendChild(tbl);
@@ -665,18 +675,25 @@ function renderJournal(){
   body.innerHTML = "";
 
   const canEditJournal = isAdmin || role === "teacher";
+  const isStudentView = !canEditJournal; // ученик/родитель видит только свою группу
+  const myGroup = studentGroup(CURRENT_STUDENT());
 
-  // Уровень 1: выбор группы
-  if(!journalGroup || !JOURNAL_GROUPS.includes(journalGroup)) journalGroup = JOURNAL_GROUPS[0];
-  const gsel = el("div","chips");
-  JOURNAL_GROUPS.forEach(g=>{
-    const c = el("button","chip"+(g===journalGroup?" on":""), g);
-    c.type = "button";
-    c.dataset.jgroup = g;
-    gsel.appendChild(c);
-  });
-  body.appendChild(el("div","stab",`<b>Группа:</b>`));
-  body.appendChild(gsel);
+  // Уровень 1: выбор группы (только учителю/админу; ученик видит свою)
+  if(isStudentView) journalGroup = myGroup;
+  else if(!journalGroup || !JOURNAL_GROUPS.includes(journalGroup)) journalGroup = JOURNAL_GROUPS[0];
+  if(!isStudentView){
+    const gsel = el("div","chips");
+    JOURNAL_GROUPS.forEach(g=>{
+      const c = el("button","chip"+(g===journalGroup?" on":""), g);
+      c.type = "button";
+      c.dataset.jgroup = g;
+      gsel.appendChild(c);
+    });
+    body.appendChild(el("div","stab",`<b>Группа:</b>`));
+    body.appendChild(gsel);
+  } else {
+    body.appendChild(el("div","stab",`<b>Ваша группа:</b> <span style="font-weight:700">${myGroup}</span>`));
+  }
 
   const subs = JOURNAL_SUBJECTS.filter(s=>DATA.journal[journalGroup] && DATA.journal[journalGroup][s]);
 
@@ -797,16 +814,21 @@ function renderManage(){
   body.innerHTML = "";
   if(!isAdmin){ body.appendChild(el("div","placeholder","Этот раздел доступен только администратору.")); return; }
 
-  // --- Ученики ---
+  // --- Ученики (с выбором группы) ---
   const sSec = el("div","section");
-  sSec.innerHTML = "<h2>Ученики</h2>";
+  sSec.innerHTML = "<h2>Ученики и группы</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Укажите группу (курс) для каждого ученика — ученик будет видеть только свою группу в журнале.</p>";
   const slist = el("div","mlist");
   STUDENTS().forEach((s,i)=>{
-    slist.appendChild(el("span","mchip", `${s}<small> №${i+1}</small><button type="button" class="del-student" data-i="${i}" aria-label="Удалить ученика">×</button>`));
+    const cur = studentGroup(s);
+    const opts = JOURNAL_GROUPS.map(g=>`<option value="${g}"${g===cur?" selected":""}>${g}</option>`).join("");
+    slist.appendChild(el("span","mchip",
+      `<span style="font-weight:600">${s}</span>
+       <select class="textbox sg-select" data-si="${i}" style="margin-left:8px;padding:3px 6px;font-size:13px;width:130px">${opts}</select>
+       <button type="button" class="del-student" data-i="${i}" aria-label="Удалить ученика">×</button>`));
   });
   sSec.appendChild(slist);
   const srow = el("div","mrow");
-  srow.innerHTML = `<input class="textbox" id="new-student" placeholder="ФИО нового ученика"><button class="sbtn" id="add-student">Добавить</button>`;
+  srow.innerHTML = `<input class="textbox" id="new-student" placeholder="ФИО нового ученика"><select class="textbox" id="new-student-group" style="max-width:150px">${JOURNAL_GROUPS.map(g=>`<option value="${g}">${g}</option>`).join("")}</select><button class="sbtn" id="add-student">Добавить</button>`;
   sSec.appendChild(srow);
   body.appendChild(sSec);
 
@@ -823,14 +845,27 @@ function renderManage(){
   pSec.appendChild(prow);
   body.appendChild(pSec);
 
-  // --- Расписание (простое редактирование по дням) ---
+  // --- Расписание (полное редактирование: уроки, кабинеты, время) ---
   const rSec = el("div","section");
-  rSec.innerHTML = "<h2>Расписание</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Укажите предметы ч/з запятую для каждого дня (пробелы не важны).</p>";
+  rSec.innerHTML = "<h2>Расписание</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Полностью управляйте расписанием: изменяйте предмет, учителя, кабинет и время урока, добавляйте и удаляйте уроки и дни.</p>";
   const days = Object.keys(SCHEDULE());
   days.forEach(d=>{
-    const row = el("div","mrow");
-    row.innerHTML = `<label style="min-width:120px;font-weight:600;font-size:14px">${d}</label><input class="textbox" data-sched-d="${d}" value="${SCHEDULE()[d].join(", ")}"><button class="sbtn save-sched" data-d="${d}">Сохранить</button>`;
-    rSec.appendChild(row);
+    const dayBlock = el("div","row",`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="min-width:120px">${d}</b><button type="button" class="sbtn del-sched-day" data-d="${d}" style="background:var(--bad)">Удалить день</button></div>`);
+    dayBlock.appendChild(el("div","mlist", "",{}));
+    const listEl = dayBlock.querySelector(".mlist");
+    (SCHEDULE()[d]||[]).forEach((u,i)=>{
+      const it = typeof u==="string" ? {subj:u, teacher:TEACHERS()[u]||"", room:"", time:""} : (u||{});
+      listEl.appendChild(el("span","sd-row",
+        `<input class="textbox" data-sf="${d}" data-si="${i}" data-f="subj" value="${esc(it.subj||"")}" placeholder="Предмет">
+         <input class="textbox" data-sf="${d}" data-si="${i}" data-f="teacher" value="${esc(it.teacher||"")}" placeholder="Учитель">
+         <input class="textbox" data-sf="${d}" data-si="${i}" data-f="room" value="${esc(it.room||"")}" placeholder="Кабинет" style="width:90px">
+         <input class="textbox" data-sf="${d}" data-si="${i}" data-f="time" value="${esc(it.time||"")}" placeholder="Время" style="width:110px">
+         <button type="button" class="btn del-sched-lesson" data-d="${d}" data-i="${i}" style="background:var(--bad)">×</button>
+         <button type="button" class="btn add-sched-lesson" data-d="${d}" data-after="${i}" style="background:#2f6fbf">＋</button>`));
+    });
+    dayBlock.appendChild(el("div","mrow",
+      `<input class="textbox" data-newsubj="${d}" placeholder="Предмет" style="flex:1"><button class="sbtn add-sched-lesson-end" data-d="${d}">＋ Добавить урок</button>`));
+    rSec.appendChild(dayBlock);
   });
   const newDayRow = el("div","mrow");
   newDayRow.innerHTML = `<label style="min-width:120px;font-weight:600;font-size:14px">Новый день</label><input class="textbox" id="new-sched-day" placeholder="Название дня"><button class="sbtn" id="add-sched-day">Добавить</button>`;
@@ -911,6 +946,11 @@ function doLogin(){
     } else {
       isAdmin = false;
       setRole(acc.role === "parent" ? "parent" : (acc.role === "teacher" ? "teacher" : "student"));
+      // ученик/родитель видит только свою группу
+      if(acc.role === "student" || acc.role === "parent"){
+        DATA.config.currentStudent = acc.name;
+        try{ localStorage.setItem("vgu-student", acc.name); }catch(e){}
+      }
     }
     refreshRoleTexts();
     switchPage("overview");
@@ -1012,14 +1052,14 @@ document.addEventListener("click", function(e){
   // --- Управление ---
   if(e.target.closest("#add-student")){
     const name = $("#new-student").value.trim();
+    const grp = $("#new-student-group") ? $("#new-student-group").value : JOURNAL_GROUPS[0];
     if(!name){ alert("Введите ФИО ученика."); return; }
     if(STUDENTS().includes(name)){ alert("Такой ученик уже есть."); return; }
     DATA.students.push(name);
-    // добавить строку во все предметы во всех группах журнала
-    JOURNAL_GROUPS.forEach(g=>{
-      Object.keys(DATA.journal[g]||{}).forEach(subj=>{
-        (DATA.journal[g][subj]||[]).push({name:name, grades:[]});
-      });
+    DATA.studentGroups[name] = grp;
+    // добавить строку в его группу журнала
+    Object.keys(DATA.journal[grp]||{}).forEach(subj=>{
+      (DATA.journal[grp][subj]||[]).push({name:name, grades:[]});
     });
     saveData(); renderManage(); renderJournal(); renderOverview();
     return;
@@ -1030,12 +1070,23 @@ document.addEventListener("click", function(e){
     const name = DATA.students[i];
     if(!confirm(`Удалить ученика «${name}»?`)) return;
     DATA.students.splice(i,1);
+    delete DATA.studentGroups[name];
     JOURNAL_GROUPS.forEach(g=>{
       Object.keys(DATA.journal[g]||{}).forEach(subj=>{
         DATA.journal[g][subj] = (DATA.journal[g][subj]||[]).filter(r=>r.name!==name);
       });
     });
     saveData(); renderManage(); renderJournal(); renderOverview();
+    return;
+  }
+  const sgChange = e.target.closest(".sg-select");
+  if(sgChange){
+    const i = +sgChange.dataset.si;
+    const name = DATA.students[i];
+    if(name){
+      DATA.studentGroups[name] = sgChange.value;
+      saveData(); renderManage(); renderJournal();
+    }
     return;
   }
   if(e.target.closest("#add-subject")){
@@ -1079,6 +1130,56 @@ document.addEventListener("click", function(e){
     saveData(); renderManage(); renderSchedule();
     return;
   }
+  // --- Расписание: кнопки дней и уроков ---
+  const delDay = e.target.closest(".del-sched-day");
+  if(delDay){
+    const d = delDay.dataset.d;
+    if(!confirm(`Удалить день «${d}» со всеми уроками?`)) return;
+    delete DATA.schedule[d];
+    saveData(); renderManage(); renderSchedule();
+    return;
+  }
+  const delLesson = e.target.closest(".del-sched-lesson");
+  if(delLesson){
+    const d = delLesson.dataset.d, i=+delLesson.dataset.i;
+    (DATA.schedule[d]||[]).splice(i,1);
+    saveData(); renderManage(); renderSchedule();
+    return;
+  }
+  const addLesson = e.target.closest(".add-sched-lesson");
+  if(addLesson){
+    const d = addLesson.dataset.d, after=+addLesson.dataset.after;
+    (DATA.schedule[d]||[]).splice(after+1,0,{subj:"",teacher:"",room:"",time:""});
+    saveData(); renderManage(); renderSchedule();
+    return;
+  }
+  const addEnd = e.target.closest(".add-sched-lesson-end");
+  if(addEnd){
+    const d = addEnd.dataset.d;
+    const subj = document.querySelector(`[data-newsubj="${d}"]`).value.trim();
+    (DATA.schedule[d]||[]).push({subj:subj||"Новый",teacher:"",room:"",time:""});
+    saveData(); renderManage(); renderSchedule();
+    return;
+  }
+});
+
+// Изменение полей урока в расписании (управление)
+document.addEventListener("input", function(e){
+  const f = e.target.closest && e.target.closest("[data-sf]");
+  if(!f) return;
+  const d=f.dataset.sf, i=+f.dataset.si, field=f.dataset.f;
+  const arr = DATA.schedule[d]||[];
+  const u = arr[i];
+  if(!u) return;
+  if(typeof u === "string"){ arr[i] = {subj:u,teacher:TEACHERS()[u]||"",room:"",time:""}; }
+  arr[i][field] = f.value;
+});
+document.addEventListener("change", function(e){
+  const f = e.target.closest && e.target.closest("[data-sf]");
+  if(!f) return;
+  const d=f.dataset.sf;
+  // сохраняем при изменении любого поля урока
+  saveData(); renderSchedule();
 });
 
 function openGradeInput(btn){
@@ -1149,6 +1250,10 @@ function bindNav(){
 (async function init(){
   await loadData();
   bindNav();
+  try{
+    const savedStudent = localStorage.getItem("vgu-student");
+    if(savedStudent && STUDENTS().includes(savedStudent)) DATA.config.currentStudent = savedStudent;
+  }catch(e){}
   if(savedRole === "admin" || savedRole === "teacher"){
     // Администратор — полный доступ; учитель тоже входит расширенно (журнал, оценки), но без меню «Пользователи»/«Управление»
     setRole(savedRole);
