@@ -1397,13 +1397,6 @@ function deleteHW(i){
   saveData(); renderHW();
 }
 
-document.addEventListener("DOMContentLoaded", function(){
-  var v = document.createElement("span");
-  v.id = "ver-tag";
-  v.textContent = "Версия v23.11-1";
-  v.style.cssText = "position:fixed;bottom:4px;right:8px;z-index:300;font-size:11px;color:#7b8ba8;background:transparent;pointer-events:none";
-  document.body.appendChild(v);
-});
 let savedRole = "student";
 try{ savedRole = localStorage.getItem("vgu-role") || "student"; }catch(e){}
 let CURRENT_LOGIN = "";
@@ -1413,10 +1406,10 @@ function bindNav(){
   document.querySelectorAll(".side-btn").forEach(b=>{
     if(b.__boundNav) return;
     b.__boundNav = true;
-    const go = (ev)=>{ const page=b.dataset.page; if(page){ ev.preventDefault(); switchPage(page); } };
-    b.addEventListener("click", go);
-    b.addEventListener("touchstart", go, {passive:false});
-    b.onclick = go; // inline-резерв
+    b.addEventListener("click", function(ev){
+      const page = this.dataset.page;
+      if(page) switchPage(page);
+    });
   });
 }
 (async function init(){
