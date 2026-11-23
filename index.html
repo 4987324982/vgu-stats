@@ -367,7 +367,7 @@ const JOURNAL = () => DATA.journal;
 const ACCOUNTS = () => DATA.accounts;
 
 // Группы и предметы журнала (двухуровневая структура: группа → предмет → ученики)
-const JOURNAL_GROUPS = ["РиУПО 1.1", "РиУПО 1.2"];
+const JOURNAL_GROUPS = ["РиУПО-1", "РиУПО-2"];
 const JOURNAL_SUBJECTS = ["Математика","Русский язык","Английский","География","История России","История","Физкультура","Биология","Химия"];
 
 function allJournalBlobs(){
@@ -381,15 +381,22 @@ function allJournalBlobs(){
 }
 
 // Миграция: старый формат {предмет:[...]} → новый {группа:{предмет:[...]}}
+// Также переносим старые названия групп с точкой (запрещены в Firebase) в новые без точки
 function migrateJournal(j){
   const out = {};
+  const rename = {"РиУПО 1.1":"РиУПО-1","РиУПО 1.2":"РиУПО-2"};
   JOURNAL_GROUPS.forEach(g=>out[g] = {});
   if(j && typeof j === "object"){
     // уже новый формат — переносим существующие группы
     JOURNAL_GROUPS.forEach(g=>{ if(j[g] && typeof j[g]==="object" && !Array.isArray(j[g])) out[g]=j[g]; });
+    // старые названия групп с точкой → новые
+    Object.keys(rename).forEach(oldN=>{
+      const newN = rename[oldN];
+      if(j[oldN] && typeof j[oldN]==="object" && !Array.isArray(j[oldN])) out[newN] = j[oldN];
+    });
     // старые одиночные предметы — в первую группу
     Object.keys(j).forEach(k=>{
-      if(Array.isArray(j[k]) && !JOURNAL_GROUPS.includes(k)) out[JOURNAL_GROUPS[0]][k] = j[k];
+      if(Array.isArray(j[k]) && !JOURNAL_GROUPS.includes(k) && !rename[k]) out[JOURNAL_GROUPS[0]][k] = j[k];
     });
   }
   // гарантируем наличие всех предметов во всех группах (с учениками из общего списка)
