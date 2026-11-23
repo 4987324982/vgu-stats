@@ -354,7 +354,8 @@ const DEFAULT_DATA = {
       {name:"Полина Морозова", grades:[5,5,5]},
       {name:"Артём Волков", grades:[4,4,3]}
     ]
-  }
+  },
+  loginLog: []
 };
 
 let DATA = JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -423,6 +424,7 @@ function norm(){
   DATA.schedule = DATA.schedule || {};
   DATA.homework = DATA.homework || [];
   DATA.messages = DATA.messages || [];
+  DATA.loginLog = DATA.loginLog || [];
   DATA.journal = migrateJournal(DATA.journal || {});
 }
 
@@ -788,9 +790,9 @@ function renderUsers(){
     </div>`;
   body.appendChild(form);
 
-  // Таблица всех пользователей (пароли скрыты)
+  // Таблица всех пользователей (администратор видит пароли)
   const sec = el("div","section");
-  sec.innerHTML = "<h2>Все пользователи</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Пароли скрыты в целях безопасности. Чтобы изменить пароль, нажмите «Сменить пароль».</p>";
+  sec.innerHTML = "<h2>Все пользователи</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Администратор видит все логины и пароли пользователей.</p>";
   const t = el("table","");
   let head = "<thead><tr><th>Роль</th><th>Имя</th><th>Логин</th><th>Пароль</th><th></th></tr></thead>";
   let rows = "";
@@ -799,14 +801,30 @@ function renderUsers(){
       <td><span class="badge ${a.role==="admin"?"b-warn":a.role==="teacher"?"b-chk":"b-good"}">${roleNames[a.role]||a.role}</span></td>
       <td><strong>${a.name}</strong></td>
       <td><code>${a.login}</code></td>
-      <td><span class="pass-mask">••••••</span>
-          <input class="textbox pass-edit hidden" data-i="${i}" placeholder="Новый пароль" style="width:120px;padding:3px 6px;font-size:13px">
-          <button type="button" class="btn pass-toggle" data-i="${i}" style="padding:4px 8px;font-size:12px;margin-left:6px">Сменить пароль</button></td>
+      <td><code>${a.pass}</code></td>
       <td style="text-align:right"><button type="button" class="btn hw-del user-del" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button></td></tr>`;
   });
   t.innerHTML = head+`<tbody>${rows}</tbody>`;
   sec.appendChild(t);
   body.appendChild(sec);
+
+  // --- Журнал входов ---
+  const logSec = el("div","section");
+  logSec.innerHTML = "<h2>Журнал входов</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Кто, когда и с какого IP заходил на сайт.</p>";
+  const log = DATA.loginLog || [];
+  const lg = el("table","");
+  let lhead = "<thead><tr><th>Логин</th><th>Имя</th><th>Роль</th><th>IP</th><th>Время входа</th></tr></thead>";
+  let lrows = "";
+  if(!log.length){
+    lrows = '<tr><td colspan="5" style="color:var(--muted)">Пока нет записей о входах.</td></tr>';
+  } else {
+    log.forEach(l2=>{
+      lrows += `<tr><td><code>${l2.login}</code></td><td><strong>${l2.name}</strong></td><td>${l2.role}</td><td><code>${l2.ip}</code></td><td>${l2.time}</td></tr>`;
+    });
+  }
+  lg.innerHTML = lhead+`<tbody>${lrows}</tbody>`;
+  logSec.appendChild(lg);
+  body.appendChild(logSec);
 }
 
 /* --- Управление (админ) --- */
@@ -926,6 +944,20 @@ function renderMessages(){
 
 /* --- Вход в систему --- */
 const CREDENTIALS = { student: { login:"test1", pass:"01020304" } };
+// Журнал входа: фиксируем логин, имя, время и IP при каждом успешном входе
+async function recordLogin(acc){
+  let ip = "—";
+  try{
+    const r = await fetch("https://api.ipify.org?format=json");
+    if(r.ok){ const j = await r.json(); if(j.ip) ip = j.ip; }
+  }catch(e){}
+  const now = new Date();
+  const time = now.toLocaleDateString("ru-RU") + " " + now.toLocaleTimeString("ru-RU", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  DATA.loginLog = DATA.loginLog || [];
+  DATA.loginLog.unshift({login: acc.login, name: acc.name, role: acc.role, ip: ip, time: time});
+  if(DATA.loginLog.length > 200) DATA.loginLog.length = 200;
+  saveData();
+}
 function doLogin(){
   const user = $("#login-user").value.trim();
   const pass = $("#login-pass").value;
@@ -936,6 +968,7 @@ function doLogin(){
   }
   $("#login-err").classList.add("hidden");
   try{ localStorage.setItem("vgu-auth","1"); localStorage.setItem("vgu-role", acc.role==="admin"?"admin":acc.role); }catch(e){}
+  recordLogin(acc);   // фиксируем факт входа в журнал
   // Экран приветствия со спиннером на 5 секунд
   $("#login-card-form").classList.add("hidden");
   $("#login-welcome").classList.remove("hidden");
