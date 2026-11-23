@@ -774,35 +774,45 @@ function renderUsers(){
   cards.appendChild(el("div","card tone green", `<div class="k">Администраторов</div><div class="v">${cnt("admin")}</div>`));
   body.appendChild(cards);
 
-  // Форма добавления
-  const form = el("div","section");
-  form.innerHTML = `<h2>Добавить пользователя</h2>
-    <div class="mrow" style="flex-wrap:wrap;gap:10px">
-      <select class="textbox" id="new-user-role" style="max-width:180px">
-        <option value="student">Ученик</option>
-        <option value="teacher">Учитель</option>
-        <option value="admin">Администратор</option>
-      </select>
-      <input class="textbox" id="new-user-name" placeholder="Имя / ФИО" style="flex:1;min-width:150px">
-      <input class="textbox" id="new-user-login" placeholder="Логин" style="max-width:150px">
-      <input class="textbox" id="new-user-pass" placeholder="Пароль" style="max-width:150px">
-      <button class="sbtn" id="add-user">Добавить</button>
-    </div>`;
-  body.appendChild(form);
+  // Форма добавления — только test1 (изменение/создание пользователей и паролей)
+  const canManageUsers = CURRENT_LOGIN === "test1";
+  if(canManageUsers){
+    const form = el("div","section");
+    form.innerHTML = `<h2>Добавить пользователя</h2>
+      <div class="mrow" style="flex-wrap:wrap;gap:10px">
+        <select class="textbox" id="new-user-role" style="max-width:180px">
+          <option value="student">Ученик</option>
+          <option value="teacher">Учитель</option>
+          <option value="admin">Администратор</option>
+        </select>
+        <input class="textbox" id="new-user-name" placeholder="Имя / ФИО" style="flex:1;min-width:150px">
+        <input class="textbox" id="new-user-login" placeholder="Логин" style="max-width:150px">
+        <input class="textbox" id="new-user-pass" placeholder="Пароль" style="max-width:150px">
+        <button class="sbtn" id="add-user">Добавить</button>
+      </div>`;
+    body.appendChild(form);
+  } else {
+    body.appendChild(el("div","section", "<h2>Добавление пользователей</h2><p style='color:var(--muted)'>Добавлять пользователей и менять пароли может только администратор <b>test1</b>.</p>"));
+  }
 
   // Таблица всех пользователей (администратор видит пароли)
   const sec = el("div","section");
-  sec.innerHTML = "<h2>Все пользователи</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Администратор видит все логины и пароли пользователей.</p>";
+  sec.innerHTML = "<h2>Все пользователи</h2><p style='color:var(--muted);margin:0 0 12px;font-size:13px'>Администратор видит все логины и пароли пользователей. Менять пароли может только test1.</p>";
   const t = el("table","");
-  let head = "<thead><tr><th>Роль</th><th>Имя</th><th>Логин</th><th>Пароль</th><th></th></tr></thead>";
+  let head = "<thead><tr><th>Роль</th><th>Имя</th><th>Логин</th><th>Пароль</th>"+(canManageUsers?"<th></th>":"")+"</tr></thead>";
   let rows = "";
   accs.forEach((a,i)=>{
+    const changeBtn = canManageUsers
+      ? `<td style="text-align:right">
+           <button type="button" class="btn hw-del user-del" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button>
+           <button type="button" class="btn pass-toggle" data-i="${i}" style="padding:4px 8px;font-size:11px;margin-left:4px">Сменить пароль</button></td>`
+      : "";
     rows += `<tr>
       <td><span class="badge ${a.role==="admin"?"b-warn":a.role==="teacher"?"b-chk":"b-good"}">${roleNames[a.role]||a.role}</span></td>
       <td><strong>${a.name}</strong></td>
       <td><code>${a.login}</code></td>
       <td><code>${a.pass}</code></td>
-      <td style="text-align:right"><button type="button" class="btn hw-del user-del" data-i="${i}" style="background:var(--bad);padding:6px 12px;font-size:12px">Удалить</button></td></tr>`;
+      ${changeBtn}</tr>`;
   });
   t.innerHTML = head+`<tbody>${rows}</tbody>`;
   sec.appendChild(t);
@@ -967,7 +977,8 @@ function doLogin(){
     return;
   }
   $("#login-err").classList.add("hidden");
-  try{ localStorage.setItem("vgu-auth","1"); localStorage.setItem("vgu-role", acc.role==="admin"?"admin":acc.role); }catch(e){}
+  try{ localStorage.setItem("vgu-auth","1"); localStorage.setItem("vgu-role", acc.role==="admin"?"admin":acc.role); localStorage.setItem("vgu-login", acc.login); }catch(e){}
+  CURRENT_LOGIN = acc.login;
   recordLogin(acc);   // фиксируем факт входа в журнал
   // Экран приветствия со спиннером на 5 секунд
   $("#login-card-form").classList.add("hidden");
@@ -1010,7 +1021,9 @@ function doLogout(){
   try{
     localStorage.removeItem("vgu-auth");
     localStorage.removeItem("vgu-role");
+    localStorage.removeItem("vgu-login");
   }catch(e){}
+  CURRENT_LOGIN = "";
   // показать экран входа
   document.body.classList.add("locked");
   $("#login-overlay").classList.remove("hidden");
@@ -1046,6 +1059,7 @@ document.addEventListener("click", function(e){
   // УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ (должно быть раньше .hw-del, т.к. кнопка имеет оба класса)
   const userDel = e.target.closest(".user-del");
   if(userDel){
+    if(CURRENT_LOGIN !== "test1"){ alert("Удалять пользователей может только администратор test1."); return; }
     const ui = +userDel.dataset.i;
     const ua = ACCOUNTS()[ui];
     if(!ua) return;
@@ -1056,21 +1070,15 @@ document.addEventListener("click", function(e){
   }
   const passToggle = e.target.closest(".pass-toggle");
   if(passToggle){
-    const row = passToggle.closest("tr");
-    const mask = row.querySelector(".pass-mask");
-    const edit = row.querySelector(".pass-edit");
-    if(edit.classList.contains("hidden")){
-      edit.classList.remove("hidden");
-      edit.focus();
-      passToggle.textContent = "Готово";
-    } else {
-      const val = edit.value.trim();
-      if(!val){ alert("Введите новый пароль."); return; }
-      const ui = +passToggle.dataset.i;
-      const ua = ACCOUNTS()[ui];
-      if(ua){ ua.pass = val; saveData(); }
-      renderUsers();
-    }
+    if(CURRENT_LOGIN !== "test1"){ alert("Менять пароли может только администратор test1."); return; }
+    const ui = +passToggle.dataset.i;
+    const ua = ACCOUNTS()[ui];
+    if(!ua) return;
+    const val = prompt(`Новый пароль для «${ua.name}» (${ua.login}):`, "");
+    if(val === null) return;          // отмена
+    if(!val.trim()){ alert("Пароль не может быть пустым."); return; }
+    ua.pass = val.trim();
+    saveData(); renderUsers();
     return;
   }
   const hwDel = e.target.closest(".hw-del");
@@ -1094,6 +1102,7 @@ document.addEventListener("click", function(e){
     return;
   }
   if(e.target.closest("#add-user")){
+    if(CURRENT_LOGIN !== "test1"){ alert("Изменять и создавать пользователей (и их пароли) может только администратор test1."); return; }
     const role = $("#new-user-role").value;
     const name = $("#new-user-name").value.trim();
     const login = $("#new-user-login").value.trim();
@@ -1291,6 +1300,8 @@ function deleteHW(i){
 
 let savedRole = "student";
 try{ savedRole = localStorage.getItem("vgu-role") || "student"; }catch(e){}
+let CURRENT_LOGIN = "";
+try{ CURRENT_LOGIN = localStorage.getItem("vgu-login") || ""; }catch(e){}
 // Прямые обработчики клика на кнопки меню — надёжнее делегирования на document
 function bindNav(){
   document.querySelectorAll(".side-btn").forEach(b=>{
